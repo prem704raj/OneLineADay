@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
@@ -54,27 +56,30 @@ fun HomeScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     
-    var entryText by remember { mutableStateOf(uiState.todayEntry?.content ?: "") }
-    var selectedMood by remember { mutableStateOf(uiState.todayEntry?.mood ?: Mood.NEUTRAL) }
-    var photoUri by remember { mutableStateOf<String?>(uiState.todayEntry?.photoUri) }
+    // Form always starts empty — never pre-populated from todayEntry
+    var entryText by remember { mutableStateOf("") }
+    var selectedMood by remember { mutableStateOf(Mood.NEUTRAL) }
+    var photoUri by remember { mutableStateOf<String?>(null) }
     
-    // Update form when todayEntry changes (e.g. initial load)
-    LaunchedEffect(uiState.todayEntry) {
-        if (uiState.todayEntry != null && entryText.isBlank() && photoUri == null) {
-            entryText = uiState.todayEntry.content
-            selectedMood = uiState.todayEntry.mood
-            photoUri = uiState.todayEntry.photoUri
-        }
-    }
+    val audioFile = remember(uiState.selectedDate) { java.io.File(context.filesDir, "audio_${uiState.selectedDate}.m4a") }
+    var hasAudio by remember(uiState.selectedDate) { androidx.compose.runtime.mutableStateOf(audioFile.exists()) }
+    
+    // Controls whether to show the edit form or the "captured" card
+    var isEditing by remember { mutableStateOf(false) }
     
     val focusRequester = remember { FocusRequester() }
+    val haptic = LocalHapticFeedback.current
     
     var showPremiumDialog by remember { mutableStateOf(false) }
     
-    // When entry is saved, show a success message but DO NOT clear the form
-    // The form should display today's entry so the user can continue editing if they want.
+    // When entry is saved, clear the form and exit editing mode
     LaunchedEffect(uiState.entrySaved) {
         if (uiState.entrySaved) {
+            entryText = ""
+            selectedMood = Mood.NEUTRAL
+            photoUri = null
+            hasAudio = false
+            isEditing = false
             viewModel.clearEntrySavedFlag()
         }
     }
@@ -96,12 +101,13 @@ fun HomeScreen(
         }
     }
     
+    // Determine whether to show the write form or the "captured" card
+    val showWriteForm = uiState.todayEntry == null || isEditing
+    
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            BannerAdView()
-        }
+        topBar = {}
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -237,121 +243,220 @@ fun HomeScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Main Entry Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 16.dp,
-                        shape = RoundedCornerShape(28.dp),
-                        ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    ),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp)
+            if (showWriteForm) {
+                // ── Write / Edit Form ──
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(28.dp),
+                            ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        ),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 ) {
-                    // Mood Picker
-                    MoodPicker(
-                        selectedMood = selectedMood,
-                        onMoodSelected = { selectedMood = it }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Stylish Text Input with Gradient Colors
-                    StylishTextInput(
-                        value = entryText,
-                        onValueChange = { entryText = it },
-                        placeholder = stringResource(R.string.write_your_line)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(20.dp))
-                    
-                    val audioFile = remember(uiState.selectedDate) { java.io.File(context.filesDir, "audio_${uiState.selectedDate}.m4a") }
-                    var hasAudio by remember(uiState.selectedDate) { androidx.compose.runtime.mutableStateOf(audioFile.exists()) }
-                    
-                    // Photo Attachment
-                    PhotoAttachment(
-                        photoUri = photoUri,
-                        onPhotoSelected = { uri ->
-                            val savedPath = viewModel.savePhotoToInternal(context, uri)
-                            photoUri = savedPath
-                        },
-                        onPhotoRemoved = { photoUri = null }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Audio Attachment
-                    AudioAttachment(
-                        dateKey = uiState.selectedDate.toString(),
-                        onAudioSaved = { hasAudio = true },
-                        onAudioDeleted = { hasAudio = false }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Save Button
-                    val canSave = entryText.isNotBlank() || photoUri != null || hasAudio
-                    Button(
-                        onClick = {
-                            if (canSave) {
-                                viewModel.saveEntry(entryText, selectedMood, photoUri)
-                                val activity = context as? Activity
-                                if (activity != null) {
-                                    InterstitialAdManager.showAdIfTimePassed(activity)
-                                }
-                            }
-                        },
-                        enabled = canSave,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                    Column(
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        Icon(
-                            imageVector = if (uiState.todayEntry != null) Icons.Rounded.Edit else Icons.Rounded.Check,
-                            contentDescription = null
+                        // Mood Picker
+                        MoodPicker(
+                            selectedMood = selectedMood,
+                            onMoodSelected = { 
+                                selectedMood = it
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) 
+                            }
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Stylish Text Input with Gradient Colors
+                        StylishTextInput(
+                            value = entryText,
+                            onValueChange = { entryText = it },
+                            placeholder = stringResource(R.string.write_your_line)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = if (uiState.todayEntry != null) stringResource(R.string.home_update_entry) else stringResource(R.string.home_save_entry),
-                            style = MaterialTheme.typography.labelLarge
+                            text = "${entryText.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }} words • ${entryText.length} characters",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.align(Alignment.End)
                         )
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        // Photo Attachment
+                        PhotoAttachment(
+                            photoUri = photoUri,
+                            onPhotoSelected = { uri ->
+                                val savedPath = viewModel.saveMediaToInternal(context, uri)
+                                photoUri = savedPath
+                            },
+                            onPhotoRemoved = { photoUri = null }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Audio Attachment
+                        AudioAttachment(
+                            dateKey = uiState.selectedDate.toString(),
+                            onAudioSaved = { hasAudio = true },
+                            onAudioDeleted = { hasAudio = false }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Save Button
+                        val canSave = entryText.isNotBlank() || photoUri != null || hasAudio
+                        Button(
+                            onClick = {
+                                if (canSave) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.saveEntry(entryText, selectedMood, photoUri)
+                                    val activity = context.findActivity()
+                                    if (activity != null) {
+                                        InterstitialAdManager.onEntrySaved(activity)
+                                    }
+                                }
+                            },
+                            enabled = canSave,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.todayEntry != null) Icons.Rounded.Edit else Icons.Rounded.Check,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (uiState.todayEntry != null) stringResource(R.string.home_update_entry) else stringResource(R.string.home_save_entry),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                    }
+                }
+            } else {
+                // ── Today's Memory Captured Card ──
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(28.dp),
+                            ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        ),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "✅",
+                            style = MaterialTheme.typography.displaySmall
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = stringResource(R.string.home_today_captured),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // Show saved mood and content
+                        uiState.todayEntry?.let { entry ->
+                            Text(
+                                text = "${entry.mood.emoji} ${entry.mood.label}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Show saved content preview
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Text(
+                                    text = entry.content,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        // Edit button to go back to form mode
+                        OutlinedButton(
+                            onClick = {
+                                // Pre-fill the form with existing entry for editing
+                                uiState.todayEntry?.let { entry ->
+                                    entryText = entry.content
+                                    selectedMood = entry.mood
+                                    photoUri = entry.photoUri
+                                }
+                                isEditing = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.home_update_entry),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 }
             }
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Motivational Message
+            // Motivational Message (only when no entry at all)
             if (uiState.totalEntries == 0) {
                 EmptyStateMessage()
-            } else if (uiState.todayEntry != null) {
-                Text(
-                    text = stringResource(R.string.home_today_captured),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
             
-            Spacer(modifier = Modifier.height(100.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            BannerAdView()
+            Spacer(modifier = Modifier.height(84.dp))
         }
     }
     
@@ -401,4 +506,10 @@ fun EmptyStateMessage() {
             textAlign = TextAlign.Center
         )
     }
+}
+
+fun android.content.Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

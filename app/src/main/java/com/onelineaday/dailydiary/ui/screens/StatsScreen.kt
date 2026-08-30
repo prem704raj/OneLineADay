@@ -51,9 +51,7 @@ fun StatsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column {
-                BannerAdView()
-                TopAppBar(
+            TopAppBar(
                     title = {
                         Text(
                             text = stringResource(R.string.stats_your_journey),
@@ -65,7 +63,6 @@ fun StatsScreen(
                         containerColor = MaterialTheme.colorScheme.background
                     )
                 )
-            }
         }
     ) { paddingValues ->
         Column(
@@ -86,6 +83,11 @@ fun StatsScreen(
                 StreakCard(
                     currentStreak = uiState.currentStreak,
                     longestStreak = uiState.longestStreak
+                )
+                
+                // Year in Review
+                YearInReviewCard(
+                    entries = uiState.entries
                 )
                 
                 // Stats Grid
@@ -265,5 +267,116 @@ fun MilestoneItem(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
         }
+    }
+}
+
+@Composable
+fun YearInReviewCard(
+    entries: List<com.onelineaday.dailydiary.data.JournalEntry>,
+    modifier: Modifier = Modifier
+) {
+    val currentYear = java.time.LocalDate.now().year
+    val thisYearEntries = entries.filter { it.date.year == currentYear }
+    
+    val totalEntries = thisYearEntries.size
+    val topMood = thisYearEntries.groupBy { it.mood }
+        .maxByOrNull { it.value.size }?.key
+        
+    // Calculate longest streak for this year
+    var longestStreak = 0
+    var currentStreak = 0
+    var previousDate: java.time.LocalDate? = null
+    
+    thisYearEntries.sortedBy { it.date }.forEach { entry ->
+        if (previousDate == null) {
+            currentStreak = 1
+        } else {
+            val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(previousDate, entry.date)
+            if (daysBetween == 1L) {
+                currentStreak++
+            } else if (daysBetween > 1L) {
+                currentStreak = 1
+            }
+        }
+        if (currentStreak > longestStreak) {
+            longestStreak = currentStreak
+        }
+        previousDate = entry.date
+    }
+
+    androidx.compose.material3.Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface
+        ),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🎊",
+                    style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "$currentYear in Review",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                YearStatItem(
+                    label = "Entries",
+                    value = totalEntries.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                YearStatItem(
+                    label = "Top Mood",
+                    value = topMood?.emoji ?: "-",
+                    modifier = Modifier.weight(1f)
+                )
+                YearStatItem(
+                    label = "Best Streak",
+                    value = "$longestStreak days",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun YearStatItem(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = label,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

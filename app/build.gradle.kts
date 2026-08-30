@@ -14,8 +14,8 @@ android {
         applicationId = "com.onelineaday.dailydiary"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "4.0"
+        versionCode = 6
+        versionName = "4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -80,6 +80,7 @@ dependencies {
     
     // Coil for images
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-video:2.5.0")
     
     // DataStore for preferences
     implementation("androidx.datastore:datastore-preferences:1.0.0")
@@ -95,6 +96,9 @@ dependencies {
     
     // Google Fonts
     implementation("androidx.compose.ui:ui-text-google-fonts:1.6.0")
+    
+    // Gson for JSON backup
+    implementation("com.google.code.gson:gson:2.10.1")
     
     // Splash Screen
     implementation("androidx.core:core-splashscreen:1.0.1")

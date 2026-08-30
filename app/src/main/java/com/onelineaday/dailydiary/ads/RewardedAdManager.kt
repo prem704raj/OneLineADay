@@ -20,7 +20,7 @@ object RewardedAdManager {
 
     private const val TAG = "RewardedAdManager"
 
-    // ⚠️ Test ad unit ID — replace with your real one before publishing
+    // Real AdMob ad unit ID
     private const val REWARDED_AD_UNIT_ID = "ca-app-pub-8204679574020840/8271044708"
 
     private var rewardedAd: RewardedAd? = null

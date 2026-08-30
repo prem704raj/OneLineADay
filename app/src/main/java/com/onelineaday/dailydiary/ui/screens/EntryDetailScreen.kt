@@ -1,5 +1,7 @@
 package com.onelineaday.dailydiary.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -27,6 +29,7 @@ import com.onelineaday.dailydiary.data.Mood
 import com.onelineaday.dailydiary.ui.components.AudioPlayerView
 import com.onelineaday.dailydiary.ui.components.MoodBadge
 import com.onelineaday.dailydiary.ui.components.StylishEntryText
+import com.onelineaday.dailydiary.ui.components.MediaGallery
 
 import com.onelineaday.dailydiary.ui.components.getMoodColor
 import com.onelineaday.dailydiary.ui.theme.*
@@ -43,11 +46,11 @@ fun EntryDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onTogglePin: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var showFullScreenImage by remember { mutableStateOf(false) }
     
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -70,12 +73,41 @@ fun EntryDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onEdit) {
+                    if (onTogglePin != null) {
+                        IconButton(onClick = { onTogglePin.invoke() }) {
+                            Icon(
+                                imageVector = if (entry.isPinned) Icons.Rounded.PushPin else Icons.Rounded.PushPin,
+                                contentDescription = if (entry.isPinned) "Unpin" else "Pin",
+                                tint = if (entry.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    val context = LocalContext.current
+                    IconButton(onClick = {
+                        val bitmap = com.onelineaday.dailydiary.utils.ShareImageHelper.generateEntryBitmap(context, entry)
+                        com.onelineaday.dailydiary.utils.ShareImageHelper.shareBitmap(context, bitmap)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Share,
+                            contentDescription = "Share",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = { onEdit() }) {
                         Icon(
                             imageVector = Icons.Rounded.Edit,
                             contentDescription = "Edit",
                             tint = MaterialTheme.colorScheme.primary
                         )
+                    }
+                    if (onTogglePin != null) {
+                        IconButton(onClick = { onTogglePin.invoke() }) {
+                            Icon(
+                                imageVector = if (entry.isPinned) Icons.Rounded.PushPin else Icons.Rounded.PushPin,
+                                contentDescription = if (entry.isPinned) "Unpin" else "Pin",
+                                tint = if (entry.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
@@ -202,11 +234,36 @@ fun EntryDetailScreen(
                     StylishEntryText(
                         text = entry.content
                     )
+                    
+                    if (entry.tags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            entry.tags.forEach { tag ->
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Text(
+                                        text = "#$tag",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             
-            // Photo Card (if exists)
-            entry.photoUri?.let { uri ->
+            // Media Gallery
+            val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }
+            if (allMedia.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 
                 Card(
@@ -219,45 +276,25 @@ fun EntryDetailScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    onClick = { showFullScreenImage = true }
+                    )
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Photo Memory",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium
-                            )
-                            
-                            Icon(
-                                imageVector = Icons.Rounded.ZoomIn,
-                                contentDescription = "View full",
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Text(
+                            text = "Media Attached",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
                         
                         Spacer(modifier = Modifier.height(12.dp))
                         
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(File(uri))
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Entry photo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 200.dp, max = 400.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                        MediaGallery(
+                            mediaUris = allMedia,
+                            onMediaSelected = {},
+                            onMediaRemoved = {},
+                            isEditable = false
                         )
                     }
                 }
@@ -333,28 +370,21 @@ fun EntryDetailScreen(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
     }
     
-    // Full screen image viewer
-    if (showFullScreenImage && entry.photoUri != null) {
-        FullScreenImageViewer(
-            imageUri = entry.photoUri,
-            onDismiss = { showFullScreenImage = false }
-        )
-    }
 }
 
 @Composable
-private fun TimeInfoItem(
+fun TimeInfoItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     time: String
@@ -382,46 +412,6 @@ private fun TimeInfoItem(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-    }
-}
-
-@Composable
-fun FullScreenImageViewer(
-    imageUri: String,
-    onDismiss: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.95f))
-    ) {
-        // Close button
-        IconButton(
-            onClick = onDismiss,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Close,
-                contentDescription = "Close",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        
-        // Image
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(File(imageUri))
-                .crossfade(true)
-                .build(),
-            contentDescription = "Full screen photo",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        )
     }
 }
 

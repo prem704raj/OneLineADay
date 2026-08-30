@@ -44,6 +44,7 @@ fun EntryCard(
     onClick: () -> Unit,
     showFullContent: Boolean = false,
     dateLabel: String? = null,
+    onTogglePin: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val moodColor = getMoodColor(entry.mood)
@@ -137,6 +138,25 @@ fun EntryCard(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
+                        if (entry.isPinned) {
+                            Icon(
+                                imageVector = Icons.Rounded.PushPin,
+                                contentDescription = "Pinned",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { onTogglePin?.invoke() }
+                            )
+                        } else if (onTogglePin != null) {
+                            Icon(
+                                imageVector = Icons.Rounded.PushPin,
+                                contentDescription = "Pin",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { onTogglePin.invoke() }
+                            )
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -149,43 +169,106 @@ fun EntryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     
+                    if (entry.tags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            entry.tags.forEach { tag ->
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Text(
+                                        text = "#$tag",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
                     Spacer(modifier = Modifier.height(12.dp))
                     AudioPlayerView(dateKey = entry.date.toString())
                 }
                 
-                entry.photoUri?.let { uri ->
-                    val photoData = remember(uri) {
+                val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }
+                allMedia.firstOrNull()?.let { uri ->
+                    val isVideo = uri.endsWith(".mp4") || uri.contains("video")
+                    val mediaData = remember(uri) {
                         if (uri.startsWith("/")) File(uri) else uri
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(photoData)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Entry photo",
-                        contentScale = ContentScale.Crop,
+                    Box(
                         modifier = Modifier
                             .size(100.dp)
                             .clip(RoundedCornerShape(12.dp))
                     ) {
-                        when (painter.state) {
-                            is AsyncImagePainter.State.Error -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.BrokenImage,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                        SubcomposeAsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(mediaData)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Entry media",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            when (painter.state) {
+                                is AsyncImagePainter.State.Error -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.BrokenImage,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                 }
+                                else -> SubcomposeAsyncImageContent()
                             }
-                            else -> SubcomposeAsyncImageContent()
+                        }
+                        
+                        if (isVideo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PlayCircleOutline,
+                                    contentDescription = "Play Video",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                        
+                        if (allMedia.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(4.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "+${allMedia.size - 1}",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

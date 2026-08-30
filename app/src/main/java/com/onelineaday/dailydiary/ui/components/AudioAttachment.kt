@@ -1,5 +1,7 @@
 package com.onelineaday.dailydiary.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,6 +23,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import com.onelineaday.dailydiary.audio.AudioPlayerHelper
 import com.onelineaday.dailydiary.audio.AudioRecorderHelper
 import com.onelineaday.dailydiary.ui.theme.*
@@ -121,12 +125,37 @@ fun AudioAttachment(
                         )
                     }
                     
+                    var showDeleteConfirm by remember { mutableStateOf(false) }
+                    
+                    if (showDeleteConfirm) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteConfirm = false },
+                            title = { Text(stringResource(R.string.delete_voice_memory_title)) },
+                            text = { Text(stringResource(R.string.delete_voice_memory_message)) },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showDeleteConfirm = false
+                                        player.stop()
+                                        audioFile.delete()
+                                        fileExists = false
+                                        onAudioDeleted()
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDeleteConfirm = false }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            }
+                        )
+                    }
+                    
                     IconButton(
                         onClick = {
-                            player.stop()
-                            audioFile.delete()
-                            fileExists = false
-                            onAudioDeleted()
+                            showDeleteConfirm = true
                         }
                     ) {
                         Icon(
@@ -247,13 +276,13 @@ fun AudioPlayerView(
     
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
         )
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier.padding(8.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
@@ -262,26 +291,31 @@ fun AudioPlayerView(
                 },
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    .size(40.dp)
+                    .size(36.dp)
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = "Play/Pause",
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Voice Memory",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "Tap to listen",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
+import com.onelineaday.dailydiary.ui.components.MediaGallery
 import com.onelineaday.dailydiary.ui.components.*
 import com.onelineaday.dailydiary.ui.theme.*
 import com.onelineaday.dailydiary.ads.BannerAdView
@@ -52,6 +53,8 @@ fun TimelineScreen(
     var showSearch by remember { mutableStateOf(false) }
     var showFilter by remember { mutableStateOf(false) }
     var selectedMoodFilter by remember { mutableStateOf<Mood?>(null) }
+    var showOnlyPinned by remember { mutableStateOf(false) }
+    var selectedTagFilter by remember { mutableStateOf<String?>(null) }
     var selectedEntry by remember { mutableStateOf<JournalEntry?>(null) }
     var editingEntry by remember { mutableStateOf<JournalEntry?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -64,10 +67,18 @@ fun TimelineScreen(
         uiState.entries
     }
     
-    val entries = if (selectedMoodFilter != null) {
+    var entries = if (selectedMoodFilter != null) {
         baseEntries.filter { it.mood == selectedMoodFilter }
     } else {
         baseEntries
+    }
+    
+    if (showOnlyPinned) {
+        entries = entries.filter { it.isPinned }
+    }
+    
+    if (selectedTagFilter != null) {
+        entries = entries.filter { it.tags.contains(selectedTagFilter) }
     }
     
     // Show edit dialog if editing
@@ -76,13 +87,13 @@ fun TimelineScreen(
             entry = entry,
             viewModel = viewModel,
             onDismiss = { editingEntry = null },
-            onSave = { newContent, newMood, newPhotoUri ->
-                viewModel.updateEntry(entry, newContent, newMood, newPhotoUri)
+            onSave = { newContent, newMood, newPhotoUri, newMediaUris ->
+                viewModel.updateEntry(entry, newContent, newMood, newPhotoUri, newMediaUris)
                 editingEntry = null
                 
-                // Show Interstitial Ad if time passed
+                // Show Interstitial Ad (every N edits)
                 (context as? Activity)?.let { activity ->
-                    InterstitialAdManager.showAdIfTimePassed(activity)
+                    InterstitialAdManager.onEntrySaved(activity)
                 }
             }
         )
@@ -97,6 +108,11 @@ fun TimelineScreen(
             onDelete = {
                 viewModel.deleteEntry(entry)
                 selectedEntry = null
+            },
+            onTogglePin = {
+                val updatedEntry = entry.copy(isPinned = !entry.isPinned)
+                viewModel.togglePin(entry)
+                selectedEntry = updatedEntry
             }
         )
         return
@@ -107,7 +123,6 @@ fun TimelineScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Column {
-                BannerAdView()
                 TopAppBar(
                     title = {
                         if (!showSearch) {
@@ -214,6 +229,7 @@ fun TimelineScreen(
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut()
                 ) {
+                    val allTags = remember(baseEntries) { baseEntries.flatMap { it.tags }.distinct().sorted() }
                     LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -222,9 +238,24 @@ fun TimelineScreen(
                     ) {
                         item {
                             FilterChip(
-                                selected = selectedMoodFilter == null,
-                                onClick = { selectedMoodFilter = null },
-                                label = { Text("All") },
+                                selected = selectedMoodFilter == null && !showOnlyPinned && selectedTagFilter == null,
+                                onClick = { 
+                                    selectedMoodFilter = null
+                                    showOnlyPinned = false
+                                    selectedTagFilter = null
+                                },
+                                label = { Text(stringResource(R.string.filter_all)) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = showOnlyPinned,
+                                onClick = { showOnlyPinned = !showOnlyPinned },
+                                label = { Text("📌 Pinned") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -236,6 +267,18 @@ fun TimelineScreen(
                                 selected = selectedMoodFilter == mood,
                                 onClick = { selectedMoodFilter = mood },
                                 label = { Text("${mood.emoji} ${mood.label}") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                        
+                        items(allTags) { tag ->
+                            FilterChip(
+                                selected = selectedTagFilter == tag,
+                                onClick = { selectedTagFilter = if (selectedTagFilter == tag) null else tag },
+                                label = { Text("#$tag") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -461,12 +504,12 @@ fun EditEntryDialog(
     entry: JournalEntry,
     viewModel: JournalViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, Mood, String?) -> Unit
+    onSave: (String, Mood, String?, List<String>) -> Unit
 ) {
     val context = LocalContext.current
     var editedText by remember { mutableStateOf(entry.content) }
     var editedMood by remember { mutableStateOf(entry.mood) }
-    var editedPhotoUri by remember { mutableStateOf(entry.photoUri) }
+    var editedMediaUris by remember { mutableStateOf(entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -528,14 +571,17 @@ fun EditEntryDialog(
                     maxLines = 4
                 )
                 
-                // Photo section
-                PhotoAttachment(
-                    photoUri = editedPhotoUri,
-                    onPhotoSelected = { uri ->
-                        val savedPath = viewModel.savePhotoToInternal(context, uri)
-                        editedPhotoUri = savedPath
+                // Media section
+                MediaGallery(
+                    mediaUris = editedMediaUris,
+                    onMediaSelected = { uris ->
+                        val newPaths = uris.mapNotNull { viewModel.saveMediaToInternal(context, it) }
+                        editedMediaUris = editedMediaUris + newPaths
                     },
-                    onPhotoRemoved = { editedPhotoUri = null }
+                    onMediaRemoved = { uri ->
+                        editedMediaUris = editedMediaUris.filter { it != uri }
+                    },
+                    isEditable = true
                 )
             }
         },
@@ -543,7 +589,7 @@ fun EditEntryDialog(
             Button(
                 onClick = { 
                     if (editedText.isNotBlank()) {
-                        onSave(editedText, editedMood, editedPhotoUri) 
+                        onSave(editedText, editedMood, editedMediaUris.firstOrNull(), editedMediaUris) 
                     }
                 },
                 enabled = editedText.isNotBlank()

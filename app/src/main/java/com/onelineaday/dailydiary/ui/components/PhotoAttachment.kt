@@ -1,5 +1,7 @@
 package com.onelineaday.dailydiary.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -193,7 +195,7 @@ fun PhotoAttachment(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     TextButton(onClick = onPhotoRemoved) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

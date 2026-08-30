@@ -8,6 +8,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -82,20 +83,70 @@ private val DarkColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFF9DEDC)
 )
 
+enum class AppTheme {
+    DEFAULT, OCEAN, FOREST, MONOCHROME
+}
+
 @Composable
 fun OneLineADayTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
+    appTheme: AppTheme = AppTheme.DEFAULT,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colorScheme = when (appTheme) {
+        AppTheme.OCEAN -> if (darkTheme) {
+            DarkColorScheme.copy(
+                primary = Color(0xFF66B2FF),
+                primaryContainer = Color(0xFF004C99),
+                onPrimaryContainer = Color(0xFFCCE5FF),
+                secondary = Color(0xFF66FFFF),
+                tertiary = Color(0xFF00CCCC)
+            )
+        } else {
+            LightColorScheme.copy(
+                primary = Color(0xFF0066CC),
+                primaryContainer = Color(0xFFCCE5FF),
+                onPrimaryContainer = Color(0xFF003366),
+                secondary = Color(0xFF009999),
+                tertiary = Color(0xFF0073E6)
+            )
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        AppTheme.FOREST -> if (darkTheme) {
+            DarkColorScheme.copy(
+                primary = Color(0xFF80E580),
+                primaryContainer = Color(0xFF006600),
+                onPrimaryContainer = Color(0xFFE5FFE5),
+                secondary = Color(0xFFB3FFB3),
+                tertiary = Color(0xFF33CC33)
+            )
+        } else {
+            LightColorScheme.copy(
+                primary = Color(0xFF008000),
+                primaryContainer = Color(0xFFE5FFE5),
+                onPrimaryContainer = Color(0xFF003300),
+                secondary = Color(0xFF33CC33),
+                tertiary = Color(0xFF006600)
+            )
+        }
+        AppTheme.MONOCHROME -> if (darkTheme) {
+            DarkColorScheme.copy(
+                primary = Color(0xFFE0E0E0),
+                primaryContainer = Color(0xFF424242),
+                onPrimaryContainer = Color(0xFFF5F5F5),
+                secondary = Color(0xFFBDBDBD),
+                tertiary = Color(0xFF9E9E9E)
+            )
+        } else {
+            LightColorScheme.copy(
+                primary = Color(0xFF424242),
+                primaryContainer = Color(0xFFE0E0E0),
+                onPrimaryContainer = Color(0xFF212121),
+                secondary = Color(0xFF616161),
+                tertiary = Color(0xFF757575)
+            )
+        }
+        AppTheme.DEFAULT -> if (darkTheme) DarkColorScheme else LightColorScheme
     }
     
     val view = LocalView.current

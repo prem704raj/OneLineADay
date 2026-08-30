@@ -2,6 +2,7 @@ package com.onelineaday.dailydiary.billing
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import com.android.billingclient.api.*
 import com.onelineaday.dailydiary.PremiumManager
@@ -11,9 +12,12 @@ import kotlinx.coroutines.launch
 
 object BillingManager : PurchasesUpdatedListener {
 
+    private const val TAG = "BillingManager"
     private lateinit var billingClient: BillingClient
     private var isConnected = false
     private var appContext: Context? = null
+    private var retryCount = 0
+    private const val MAX_RETRIES = 3
     
     // Replace these with your actual product IDs from the Google Play Console
     const val PRODUCT_MONTHLY = "premium_monthly"
@@ -33,30 +37,73 @@ object BillingManager : PurchasesUpdatedListener {
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                    Log.d(TAG, "Billing client connected successfully")
                     isConnected = true
+                    retryCount = 0
                     checkPurchases()
+                } else {
+                    Log.e(TAG, "Billing setup failed: ${billingResult.debugMessage}")
+                    isConnected = false
                 }
             }
             override fun onBillingServiceDisconnected() {
+                Log.w(TAG, "Billing service disconnected")
                 isConnected = false
+                // Retry connection with limit
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++
+                    Log.d(TAG, "Retrying billing connection (attempt $retryCount/$MAX_RETRIES)")
+                    connectToBilling()
+                }
             }
         })
     }
 
-    private fun checkPurchases() {
+    fun checkPurchases() {
+        var foundActivePurchase = false
+        var checksCompleted = 0
+        
+        // Check subscriptions
         billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                    foundActivePurchase = true
+                }
                 handlePurchases(purchases)
+            }
+            checksCompleted++
+            if (checksCompleted == 2 && !foundActivePurchase) {
+                // No active purchases found in either SUBS or INAPP — revoke premium
+                appContext?.let { ctx ->
+                    if (PremiumManager.isPremium.value) {
+                        Log.d(TAG, "No active purchases found. Revoking premium.")
+                        PremiumManager.setPremium(ctx, false)
+                    }
+                }
             }
         }
         
+        // Check one-time purchases
         billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                    foundActivePurchase = true
+                }
                 handlePurchases(purchases)
+            }
+            checksCompleted++
+            if (checksCompleted == 2 && !foundActivePurchase) {
+                // No active purchases found in either SUBS or INAPP — revoke premium
+                appContext?.let { ctx ->
+                    if (PremiumManager.isPremium.value) {
+                        Log.d(TAG, "No active purchases found. Revoking premium.")
+                        PremiumManager.setPremium(ctx, false)
+                    }
+                }
             }
         }
     }
@@ -65,38 +112,44 @@ object BillingManager : PurchasesUpdatedListener {
         if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
             handlePurchases(purchases)
         } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
-            // Handle an error caused by a user cancelling the purchase flow.
+            Log.d(TAG, "User canceled the purchase flow")
         } else {
-            // Handle any other error codes.
+            Log.e(TAG, "Purchase update error: ${billingResult.debugMessage}")
         }
     }
 
     private fun handlePurchases(purchases: List<Purchase>) {
-        var hasPremium = false
         for (purchase in purchases) {
             if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-                hasPremium = true
+                // Grant premium
+                appContext?.let { ctx ->
+                    if (!PremiumManager.isPremium.value) {
+                        PremiumManager.setPremium(ctx, true)
+                    }
+                }
+                // Acknowledge the purchase if not yet acknowledged
                 if (!purchase.isAcknowledged) {
                     val acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
                         .setPurchaseToken(purchase.purchaseToken)
                         .build()
-                    billingClient.acknowledgePurchase(acknowledgePurchaseParams) { _ -> }
+                    billingClient.acknowledgePurchase(acknowledgePurchaseParams) { billingResult ->
+                        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                            Log.d(TAG, "Purchase acknowledged successfully")
+                        } else {
+                            Log.e(TAG, "Failed to acknowledge purchase: ${billingResult.debugMessage}")
+                        }
+                    }
                 }
-            }
-        }
-        
-        // If we found a valid purchase, enable premium using the app context
-        if (hasPremium && !PremiumManager.isPremium.value) {
-            appContext?.let { ctx ->
-                PremiumManager.setPremium(ctx, true)
             }
         }
     }
 
     fun launchBillingFlow(activity: Activity, productId: String, isSubscription: Boolean) {
         if (!isConnected) {
-            Toast.makeText(activity, "Billing service unavailable. Simulating purchase...", Toast.LENGTH_SHORT).show()
-            simulatePurchase(activity)
+            Toast.makeText(activity, "Billing service unavailable. Please try again later.", Toast.LENGTH_SHORT).show()
+            // Try to reconnect
+            retryCount = 0
+            connectToBilling()
             return
         }
 
@@ -119,7 +172,6 @@ object BillingManager : PurchasesUpdatedListener {
                 
                 val productDetailsParamsList = listOf(
                     BillingFlowParams.ProductDetailsParams.newBuilder()
-                        // setProductDetails requires a valid offerToken for subscriptions
                         .setProductDetails(productDetails)
                         .apply {
                             if (isSubscription) {
@@ -138,17 +190,29 @@ object BillingManager : PurchasesUpdatedListener {
                 // Launch the billing flow
                 billingClient.launchBillingFlow(activity, billingFlowParams)
             } else {
-                // Product not found in console yet. Simulate for testing.
                 activity.runOnUiThread {
-                    Toast.makeText(activity, "Product not configured in Play Console yet. Simulating purchase...", Toast.LENGTH_SHORT).show()
-                    simulatePurchase(activity)
+                    Toast.makeText(
+                        activity,
+                        "This product is not available yet. Please try again later.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
     }
 
-    private fun simulatePurchase(activity: Activity) {
-        PremiumManager.setPremium(activity, true)
-        Toast.makeText(activity, "Welcome to Premium! Ads removed.", Toast.LENGTH_LONG).show()
+    /**
+     * Call this to restore purchases, e.g. from a "Restore Purchases" button in Settings.
+     */
+    fun restorePurchases(activity: Activity) {
+        if (!isConnected) {
+            Toast.makeText(activity, "Billing service unavailable. Please try again later.", Toast.LENGTH_SHORT).show()
+            retryCount = 0
+            connectToBilling()
+            return
+        }
+        
+        checkPurchases()
+        Toast.makeText(activity, "Checking for previous purchases...", Toast.LENGTH_SHORT).show()
     }
 }

@@ -20,17 +20,16 @@ object InterstitialAdManager {
 
     private const val TAG = "InterstitialAdManager"
 
-    // ⚠️ Test ad unit ID — replace with your real one before publishing
+    // Real AdMob ad unit ID
     private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-8204679574020840/2394730635"
 
     private var interstitialAd: InterstitialAd? = null
     private var isLoading = false
+    private var isShowing = false
     
-    // Configurable interval (3 minutes)
-    private const val INTERVAL_MILLIS = 3 * 60 * 1000L
-    
-    // Keep track of when we last showed an ad. Initialized to 0 so the very first time they update/save an entry, it shows instantly.
-    private var lastAdShownTime = 0L
+    // Show interstitial every N saves/edits
+    private const val SAVE_INTERVAL = 3
+    private var saveCount = 0
 
     /**
      * Pre-loads an interstitial ad so it's ready when needed.
@@ -63,34 +62,51 @@ object InterstitialAdManager {
     }
 
     /**
-     * Shows the interstitial ad ONLY IF the configured time interval has passed.
-     * 
+     * Tracks a save/edit event and shows an interstitial every N times.
      * [onAdDismissed] is called when the ad is closed (or if it wasn't shown).
      */
-    fun showAdIfTimePassed(activity: Activity, onAdDismissed: () -> Unit = {}) {
+    fun onEntrySaved(activity: Activity, onAdDismissed: () -> Unit = {}) {
         if (com.onelineaday.dailydiary.PremiumManager.isPremium.value) {
             onAdDismissed()
             return
         }
 
-        val currentTime = System.currentTimeMillis()
-        val timePassed = currentTime - lastAdShownTime
-        
-        Log.d(TAG, "Time since last ad: ${timePassed / 1000} seconds")
-        
-        val ad = interstitialAd
-        
-        if (timePassed < INTERVAL_MILLIS || ad == null) {
-            // Not enough time has passed OR ad isn't loaded yet
+        saveCount++
+        if (saveCount % SAVE_INTERVAL != 0) {
+            // Not time to show yet
             onAdDismissed()
             return
         }
+
+        showAd(activity, onAdDismissed)
+    }
+
+    /**
+     * Shows the interstitial ad unconditionally.
+     * 
+     * [onAdDismissed] is called when the ad is closed (or if it wasn't shown).
+     */
+    private fun showAd(activity: Activity, onAdDismissed: () -> Unit = {}) {
+        if (isShowing) {
+            onAdDismissed()
+            return
+        }
+
+        val ad = interstitialAd
+        
+        if (ad == null) {
+            // Ad isn't loaded yet
+            onAdDismissed()
+            return
+        }
+
+        isShowing = true
 
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 Log.d(TAG, "Interstitial ad dismissed")
                 interstitialAd = null
-                lastAdShownTime = System.currentTimeMillis() // Reset the timer
+                isShowing = false
                 onAdDismissed()
                 // Pre-load the next ad
                 loadAd(activity)
@@ -99,6 +115,7 @@ object InterstitialAdManager {
             override fun onAdFailedToShowFullScreenContent(error: AdError) {
                 Log.e(TAG, "Interstitial ad failed to show: ${error.message}")
                 interstitialAd = null
+                isShowing = false
                 onAdDismissed()
                 // Try loading again
                 loadAd(activity)

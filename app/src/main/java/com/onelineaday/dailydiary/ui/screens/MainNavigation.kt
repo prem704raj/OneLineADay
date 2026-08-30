@@ -67,7 +67,6 @@ sealed class Screen(
 val screens = listOf(
     Screen.Home,
     Screen.Timeline,
-    Screen.Gallery,
     Screen.Stats,
     Screen.Settings
 )
@@ -76,12 +75,36 @@ val screens = listOf(
 fun MainNavigation(
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
+    currentAppTheme: com.onelineaday.dailydiary.ui.theme.AppTheme = com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT,
+    onThemeChange: (com.onelineaday.dailydiary.ui.theme.AppTheme) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
     val viewModel: JournalViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    
+    DisposableEffect(lifecycleOwner) {
+        val shakeDetector = com.onelineaday.dailydiary.utils.ShakeDetector {
+            if (viewModel.lastDeletedEntry != null) {
+                viewModel.undoDelete()
+            }
+        }
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                shakeDetector.register(context)
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                shakeDetector.unregister(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        onDispose {
+            shakeDetector.unregister(context)
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -101,25 +124,12 @@ fun MainNavigation(
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
-                            val activity = context as? Activity
-                            if (activity != null) {
-                                InterstitialAdManager.showAdIfTimePassed(activity) {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
                                 }
-                            } else {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
                         },
                         icon = {
@@ -174,16 +184,6 @@ fun MainNavigation(
             }
             
             composable(
-                route = Screen.Gallery.route,
-                enterTransition = { fadeIn() + slideInHorizontally() },
-                exitTransition = { fadeOut() + slideOutHorizontally() }
-            ) {
-                GalleryScreen(
-                    uiState = uiState
-                )
-            }
-            
-            composable(
                 route = Screen.Stats.route,
                 enterTransition = { fadeIn() + slideInHorizontally() },
                 exitTransition = { fadeOut() + slideOutHorizontally() }
@@ -204,6 +204,8 @@ fun MainNavigation(
                     uiState = uiState,
                     isDarkMode = isDarkMode,
                     onDarkModeChange = onDarkModeChange,
+                    currentAppTheme = currentAppTheme,
+                    onThemeChange = onThemeChange,
                     onNavigateToPrivacyPolicy = { navController.navigate("privacy_policy") }
                 )
             }

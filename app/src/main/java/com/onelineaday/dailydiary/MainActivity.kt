@@ -27,6 +27,18 @@ import com.onelineaday.dailydiary.billing.BillingManager
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Apply saved language for API < 33
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+            val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+            val lang = prefs.getString("language", "en") ?: "en"
+            val locale = java.util.Locale(lang)
+            java.util.Locale.setDefault(locale)
+            val config = android.content.res.Configuration(resources.configuration)
+            config.setLocale(locale)
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
+
         installSplashScreen()
         super.onCreate(savedInstanceState)
         PremiumManager.init(this)
@@ -41,6 +53,15 @@ class MainActivity : FragmentActivity() {
             
             var isDarkMode by remember { 
                 mutableStateOf(prefs.getBoolean("dark_mode", systemDarkMode)) 
+            }
+            
+            var appThemeName by remember {
+                mutableStateOf(prefs.getString("app_theme", "DEFAULT") ?: "DEFAULT")
+            }
+            val currentAppTheme = try {
+                com.onelineaday.dailydiary.ui.theme.AppTheme.valueOf(appThemeName)
+            } catch (e: Exception) {
+                com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT
             }
             
             // App Lock State
@@ -63,6 +84,9 @@ class MainActivity : FragmentActivity() {
             
             LaunchedEffect(isDarkMode) {
                 prefs.edit().putBoolean("dark_mode", isDarkMode).apply()
+            }
+            LaunchedEffect(appThemeName) {
+                prefs.edit().putString("app_theme", appThemeName).apply()
             }
             
             // Helper to show biometric prompt
@@ -106,7 +130,8 @@ class MainActivity : FragmentActivity() {
             }
 
             OneLineADayTheme(
-                darkTheme = isDarkMode
+                darkTheme = isDarkMode,
+                appTheme = currentAppTheme
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -119,7 +144,9 @@ class MainActivity : FragmentActivity() {
                     } else {
                         MainNavigation(
                             isDarkMode = isDarkMode,
-                            onDarkModeChange = { isDarkMode = it }
+                            onDarkModeChange = { isDarkMode = it },
+                            currentAppTheme = currentAppTheme,
+                            onThemeChange = { appThemeName = it.name }
                         )
                     }
                 }

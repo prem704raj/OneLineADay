@@ -14,7 +14,9 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +60,8 @@ fun SettingsScreen(
     uiState: JournalUiState,
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
+    currentAppTheme: com.onelineaday.dailydiary.ui.theme.AppTheme = com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT,
+    onThemeChange: (com.onelineaday.dailydiary.ui.theme.AppTheme) -> Unit = {},
     onNavigateToPrivacyPolicy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,6 +85,36 @@ fun SettingsScreen(
     var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
     var appLockEnabled by remember { mutableStateOf(prefs.getBoolean("app_lock", false)) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+
+    val languages = listOf(
+        "en" to "English",
+        "hi" to "Hindi",
+        "bn" to "Bengali",
+        "ur" to "Urdu",
+        "es" to "Spanish",
+        "pt" to "Portuguese",
+        "fr" to "French",
+        "de" to "German",
+        "ar" to "Arabic",
+        "id" to "Indonesian",
+        "tr" to "Turkish",
+        "ru" to "Russian",
+        "ja" to "Japanese",
+        "ko" to "Korean",
+        "zh" to "Chinese (Simplified)"
+    )
+
+    val currentLanguageCode = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val locales = context.getSystemService(android.app.LocaleManager::class.java).applicationLocales
+            if (!locales.isEmpty) locales.get(0)?.language ?: "en" else "en"
+        } else {
+            prefs.getString("language", "en") ?: "en"
+        }
+    }
+    
+    val currentLanguageName = languages.find { it.first == currentLanguageCode }?.second ?: "English"
     
     // Permission launcher for notifications
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -133,9 +167,7 @@ fun SettingsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column {
-                BannerAdView()
-                TopAppBar(
+            TopAppBar(
                     title = {
                         Text(
                             text = stringResource(R.string.settings),
@@ -147,7 +179,6 @@ fun SettingsScreen(
                         containerColor = MaterialTheme.colorScheme.background
                     )
                 )
-            }
         }
     ) { paddingValues ->
         Column(
@@ -165,6 +196,18 @@ fun SettingsScreen(
                 
                 // Appearance & Security Section
                 SettingsSection(title = stringResource(R.string.settings_appearance)) {
+                    SettingsItem(
+                        icon = Icons.Rounded.Language,
+                        title = stringResource(R.string.settings_language),
+                        subtitle = currentLanguageName,
+                        onClick = { showLanguageDialog = true }
+                    )
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
                     SettingsToggleItem(
                         icon = Icons.Rounded.DarkMode,
                         title = stringResource(R.string.dark_mode),
@@ -178,10 +221,61 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                     
+                    // Theme Selector
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                        Text(
+                            text = "App Theme (Premium)",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
+                        )
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(com.onelineaday.dailydiary.ui.theme.AppTheme.values()) { theme ->
+                                val isSelected = currentAppTheme == theme
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when (theme) {
+                                                com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT -> SunsetOrange
+                                                com.onelineaday.dailydiary.ui.theme.AppTheme.OCEAN -> androidx.compose.ui.graphics.Color(0xFF0066CC)
+                                                com.onelineaday.dailydiary.ui.theme.AppTheme.FOREST -> androidx.compose.ui.graphics.Color(0xFF008000)
+                                                com.onelineaday.dailydiary.ui.theme.AppTheme.MONOCHROME -> androidx.compose.ui.graphics.Color(0xFF424242)
+                                            }
+                                        )
+                                        .clickable { onThemeChange(theme) }
+                                        .border(
+                                            width = if (isSelected) 3.dp else 0.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.Transparent,
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = "Selected",
+                                            tint = androidx.compose.ui.graphics.Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    
                     SettingsToggleItem(
                         icon = Icons.Rounded.Lock,
-                        title = "App Lock",
-                        subtitle = "Require biometric authentication to open app",
+                        title = stringResource(R.string.settings_app_lock),
+                        subtitle = stringResource(R.string.settings_app_lock_subtitle),
                         isChecked = appLockEnabled,
                         onCheckedChange = { enable ->
                             if (enable) {
@@ -273,7 +367,7 @@ fun SettingsScreen(
                                 scope.launch {
                                     isExporting = true
                                     try {
-                                        val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries)
+                                        val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
                                         if (uri != null) {
                                             sharePdf(context, uri)
                                         }
@@ -301,8 +395,8 @@ fun SettingsScreen(
                     
                     SettingsItem(
                         icon = Icons.Rounded.Backup,
-                        title = "Export Backup",
-                        subtitle = "Save a .zip of your diary to Google Drive",
+                        title = stringResource(R.string.settings_export_backup),
+                        subtitle = stringResource(R.string.settings_export_backup_subtitle),
                         onClick = { 
                             val uri = viewModel.exportBackup(context)
                             if (uri != null) {
@@ -325,8 +419,8 @@ fun SettingsScreen(
                     
                     SettingsItem(
                         icon = Icons.Rounded.Restore,
-                        title = "Restore Backup",
-                        subtitle = "Import a .zip backup to restore your data",
+                        title = stringResource(R.string.settings_restore_backup),
+                        subtitle = stringResource(R.string.settings_restore_backup_subtitle),
                         onClick = { 
                             importLauncher.launch("application/zip")
                         }
@@ -415,6 +509,23 @@ fun SettingsScreen(
                         subtitle = stringResource(R.string.settings_privacy_subtitle),
                         onClick = onNavigateToPrivacyPolicy
                     )
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    
+                    SettingsItem(
+                        icon = Icons.Rounded.ShoppingCart,
+                        title = stringResource(R.string.settings_restore_purchases),
+                        subtitle = stringResource(R.string.settings_restore_purchases_subtitle),
+                        onClick = {
+                            val activity = context as? Activity
+                            if (activity != null) {
+                                com.onelineaday.dailydiary.billing.BillingManager.restorePurchases(activity)
+                            }
+                        }
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -496,7 +607,7 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         showAdDialog = false
-                        val activity = context as? Activity
+                        val activity = context.findActivity()
                         if (activity != null) {
                             RewardedAdManager.showAd(
                                 activity = activity,
@@ -509,7 +620,7 @@ fun SettingsScreen(
                                         scope.launch {
                                             isExporting = true
                                             try {
-                                                val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries)
+                                                val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
                                         if (uri != null) {
                                             sharePdf(context, uri)
                                         }
@@ -529,7 +640,7 @@ fun SettingsScreen(
                                     scope.launch {
                                         isExporting = true
                                         try {
-                                            val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries)
+                                            val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
                                         if (uri != null) {
                                             sharePdf(context, uri)
                                         }
@@ -549,7 +660,7 @@ fun SettingsScreen(
                             scope.launch {
                                 isExporting = true
                                 try {
-                                    val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries)
+                                    val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
                                         if (uri != null) {
                                             sharePdf(context, uri)
                                         }
@@ -614,6 +725,64 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showTimePicker = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // Language Selection Dialog
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.settings_select_language)) },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn {
+                    items(languages.size) { index ->
+                        val lang = languages[index]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showLanguageDialog = false
+                                    val languageCode = lang.first
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        context.getSystemService(android.app.LocaleManager::class.java).applicationLocales = android.os.LocaleList.forLanguageTags(languageCode)
+                                        val activity = context as? Activity
+                                        activity?.recreate()
+                                    } else {
+                                        val locale = java.util.Locale(languageCode)
+                                        java.util.Locale.setDefault(locale)
+                                        val resources = context.resources
+                                        val config = android.content.res.Configuration(resources.configuration)
+                                        config.setLocale(locale)
+                                        @Suppress("DEPRECATION")
+                                        resources.updateConfiguration(config, resources.displayMetrics)
+                                        
+                                        prefs.edit().putString("language", languageCode).apply()
+                                        
+                                        val activity = context as? Activity
+                                        activity?.recreate()
+                                    }
+                                }
+                                .padding(vertical = 12.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = currentLanguageCode == lang.first,
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = lang.second,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -776,181 +945,6 @@ fun SettingsToggleItem(
                 checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
             )
         )
-    }
-}
-
-private suspend fun exportToPdf(context: Context, uiState: JournalUiState): File {
-    return withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "OneLineADay_Journal.pdf")
-        
-        // Create proper PDF using iText7
-        val writer = com.itextpdf.kernel.pdf.PdfWriter(file)
-        val pdf = com.itextpdf.kernel.pdf.PdfDocument(writer)
-        val document = com.itextpdf.layout.Document(pdf)
-        
-        // Colors
-        val primaryColor = com.itextpdf.kernel.colors.DeviceRgb(147, 51, 234) // Purple
-        val secondaryColor = com.itextpdf.kernel.colors.DeviceRgb(236, 72, 153) // Pink
-        val backgroundColor = com.itextpdf.kernel.colors.DeviceRgb(250, 245, 255) // Light purple bg
-        val textColor = com.itextpdf.kernel.colors.DeviceRgb(30, 30, 30)
-        val mutedColor = com.itextpdf.kernel.colors.DeviceRgb(120, 120, 120)
-        
-        // Fonts
-        val titleFont = com.itextpdf.kernel.font.PdfFontFactory.createFont(
-            com.itextpdf.io.font.constants.StandardFonts.HELVETICA_BOLD
-        )
-        val normalFont = com.itextpdf.kernel.font.PdfFontFactory.createFont(
-            com.itextpdf.io.font.constants.StandardFonts.HELVETICA
-        )
-        
-        // ===== HEADER SECTION =====
-        val headerTable = com.itextpdf.layout.element.Table(1)
-            .useAllAvailableWidth()
-            .setBackgroundColor(primaryColor)
-            .setPadding(20f)
-        
-        val headerCell = com.itextpdf.layout.element.Cell()
-            .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
-            .add(com.itextpdf.layout.element.Paragraph("📝 ONE LINE A DAY")
-                .setFont(titleFont)
-                .setFontSize(28f)
-                .setFontColor(com.itextpdf.kernel.colors.ColorConstants.WHITE)
-                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER))
-            .add(com.itextpdf.layout.element.Paragraph("Your Personal Journal")
-                .setFont(normalFont)
-                .setFontSize(14f)
-                .setFontColor(com.itextpdf.kernel.colors.DeviceRgb(220, 220, 255))
-                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER)
-                .setMarginTop(5f))
-        headerTable.addCell(headerCell)
-        document.add(headerTable)
-        
-        // ===== STATS SECTION =====
-        val statsTable = com.itextpdf.layout.element.Table(3)
-            .useAllAvailableWidth()
-            .setMarginTop(20f)
-            .setMarginBottom(20f)
-        
-        // Stat boxes
-        listOf(
-            Triple("🔥", "${uiState.currentStreak}", "Day Streak"),
-            Triple("📚", "${uiState.totalEntries}", "Total Entries"),
-            Triple("🏆", "${uiState.longestStreak}", "Best Streak")
-        ).forEach { (emoji, value, label) ->
-            val statCell = com.itextpdf.layout.element.Cell()
-                .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
-                .setBackgroundColor(backgroundColor)
-                .setPadding(15f)
-                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER)
-                .add(com.itextpdf.layout.element.Paragraph(emoji)
-                    .setFontSize(24f)
-                    .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER))
-                .add(com.itextpdf.layout.element.Paragraph(value)
-                    .setFont(titleFont)
-                    .setFontSize(20f)
-                    .setFontColor(primaryColor)
-                    .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER))
-                .add(com.itextpdf.layout.element.Paragraph(label)
-                    .setFont(normalFont)
-                    .setFontSize(10f)
-                    .setFontColor(mutedColor)
-                    .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER))
-            statsTable.addCell(statCell)
-        }
-        document.add(statsTable)
-        
-        // ===== ENTRIES SECTION =====
-        document.add(com.itextpdf.layout.element.Paragraph("📖 Your Memories")
-            .setFont(titleFont)
-            .setFontSize(18f)
-            .setFontColor(primaryColor)
-            .setMarginTop(20f)
-            .setMarginBottom(15f))
-        
-        val dateTimeFormatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
-        
-        uiState.entries.sortedByDescending { it.date }.forEach { entry ->
-            // Entry container table
-            val entryTable = com.itextpdf.layout.element.Table(1)
-                .useAllAvailableWidth()
-                .setMarginBottom(15f)
-                .setBorder(com.itextpdf.layout.borders.SolidBorder(
-                    com.itextpdf.kernel.colors.DeviceRgb(230, 230, 230), 1f))
-            
-            val entryCell = com.itextpdf.layout.element.Cell()
-                .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
-                .setPadding(15f)
-            
-            // Date and mood header
-            val dateStr = entry.date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
-            val timeStr = dateTimeFormatter.format(java.util.Date(entry.updatedAt))
-            
-            entryCell.add(com.itextpdf.layout.element.Paragraph("${entry.mood.emoji}  $dateStr")
-                .setFont(titleFont)
-                .setFontSize(13f)
-                .setFontColor(primaryColor))
-            
-            // Time with clock emoji
-            entryCell.add(com.itextpdf.layout.element.Paragraph("🕐 $timeStr  •  ${entry.mood.label}")
-                .setFont(normalFont)
-                .setFontSize(10f)
-                .setFontColor(mutedColor)
-                .setMarginBottom(10f))
-            
-            // Content
-            entryCell.add(com.itextpdf.layout.element.Paragraph(entry.content)
-                .setFont(normalFont)
-                .setFontSize(12f)
-                .setFontColor(textColor))
-            
-            // Add photo if exists
-            entry.photoUri?.let { photoPath ->
-                try {
-                    val photoFile = File(photoPath)
-                    if (photoFile.exists()) {
-                        val imageData = com.itextpdf.io.image.ImageDataFactory.create(photoPath)
-                        val image = com.itextpdf.layout.element.Image(imageData)
-                            .setMaxWidth(250f)
-                            .setMaxHeight(200f)
-                            .setMarginTop(10f)
-                            .setBorderRadius(com.itextpdf.layout.properties.BorderRadius(8f))
-                        
-                        // Add photo label
-                        entryCell.add(com.itextpdf.layout.element.Paragraph("📷 Photo Memory")
-                            .setFont(normalFont)
-                            .setFontSize(9f)
-                            .setFontColor(secondaryColor)
-                            .setMarginTop(10f))
-                        
-                        entryCell.add(image)
-                    }
-                } catch (e: Exception) {
-                    // Skip image if can't load
-                    e.printStackTrace()
-                }
-            }
-            
-            entryTable.addCell(entryCell)
-            document.add(entryTable)
-        }
-        
-        // ===== FOOTER =====
-        document.add(com.itextpdf.layout.element.Paragraph("✨ Generated by One Line A Day")
-            .setFont(normalFont)
-            .setFontSize(10f)
-            .setFontColor(secondaryColor)
-            .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER)
-            .setMarginTop(30f))
-        
-        document.add(com.itextpdf.layout.element.Paragraph("Capture life, one line at a time 💜")
-            .setFont(normalFont)
-            .setFontSize(9f)
-            .setFontColor(mutedColor)
-            .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER)
-            .setMarginTop(5f))
-        
-        document.close()
-        file
     }
 }
 

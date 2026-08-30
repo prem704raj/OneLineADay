@@ -8,34 +8,44 @@ import java.time.LocalDate
  */
 class JournalRepository(private val journalDao: JournalDao) {
     
-    val allEntries: Flow<List<JournalEntry>> = journalDao.getAllEntries()
+    fun getAllJournals(): Flow<List<Journal>> = journalDao.getAllJournals()
     
-    val totalEntryCount: Flow<Int> = journalDao.getTotalEntryCount()
+    suspend fun insertJournal(journal: Journal) = journalDao.insertJournal(journal)
     
-    val moodDistribution: Flow<List<MoodCount>> = journalDao.getMoodDistribution()
+    suspend fun updateJournal(journal: Journal) = journalDao.updateJournal(journal)
     
-    fun getEntryByDate(date: LocalDate): Flow<JournalEntry?> {
-        return journalDao.getEntryByDateFlow(date)
+    suspend fun deleteJournal(journal: Journal) = journalDao.deleteJournal(journal)
+    
+    suspend fun getJournalById(id: String): Journal? = journalDao.getJournalById(id)
+
+    fun getAllEntries(journalId: String = "default"): Flow<List<JournalEntry>> = journalDao.getAllEntries(journalId)
+    
+    fun getTotalEntryCount(journalId: String = "default"): Flow<Int> = journalDao.getTotalEntryCount(journalId)
+    
+    fun getMoodDistribution(journalId: String = "default"): Flow<List<MoodCount>> = journalDao.getMoodDistribution(journalId)
+    
+    fun getEntryByDate(date: LocalDate, journalId: String = "default"): Flow<JournalEntry?> {
+        return journalDao.getEntryByDateFlow(date, journalId)
     }
     
-    suspend fun getEntryByDateOnce(date: LocalDate): JournalEntry? {
-        return journalDao.getEntryByDate(date)
+    suspend fun getEntryByDateOnce(date: LocalDate, journalId: String = "default"): JournalEntry? {
+        return journalDao.getEntryByDate(date, journalId)
     }
     
-    fun getEntriesBetweenDates(startDate: LocalDate, endDate: LocalDate): Flow<List<JournalEntry>> {
-        return journalDao.getEntriesBetweenDates(startDate, endDate)
+    fun getEntriesBetweenDates(startDate: LocalDate, endDate: LocalDate, journalId: String = "default"): Flow<List<JournalEntry>> {
+        return journalDao.getEntriesBetweenDates(startDate, endDate, journalId)
     }
     
-    fun getEntriesByMood(mood: Mood): Flow<List<JournalEntry>> {
-        return journalDao.getEntriesByMood(mood)
+    fun getEntriesByMood(mood: Mood, journalId: String = "default"): Flow<List<JournalEntry>> {
+        return journalDao.getEntriesByMood(mood, journalId)
     }
     
-    fun getRecentEntries(limit: Int = 30): Flow<List<JournalEntry>> {
-        return journalDao.getRecentEntries(limit)
+    fun getRecentEntries(limit: Int = 30, journalId: String = "default"): Flow<List<JournalEntry>> {
+        return journalDao.getRecentEntries(limit, journalId)
     }
     
-    fun searchEntries(query: String): Flow<List<JournalEntry>> {
-        return journalDao.searchEntries(query)
+    fun searchEntries(query: String, journalId: String = "default"): Flow<List<JournalEntry>> {
+        return journalDao.searchEntries(query, journalId)
     }
     
     suspend fun saveEntry(entry: JournalEntry) {
@@ -50,40 +60,70 @@ class JournalRepository(private val journalDao: JournalDao) {
         journalDao.deleteEntry(entry)
     }
     
-    suspend fun deleteEntryByDate(date: LocalDate) {
-        journalDao.deleteEntryByDate(date)
+    suspend fun deleteEntryByDate(date: LocalDate, journalId: String = "default") {
+        journalDao.deleteEntryByDate(date, journalId)
     }
     
-    suspend fun getEntryCountSince(startDate: LocalDate): Int {
-        return journalDao.getEntryCountSince(startDate)
+    suspend fun getEntryCountSince(startDate: LocalDate, journalId: String = "default"): Int {
+        return journalDao.getEntryCountSince(startDate, journalId)
     }
     
     /**
      * Calculate current streak - consecutive days with entries
      */
-    suspend fun calculateStreak(entries: List<JournalEntry>): Int {
+    suspend fun calculateStreak(
+        entries: List<JournalEntry>, 
+        freezesAvailable: Int = 0,
+        onFreezesConsumed: (Int) -> Unit = {}
+    ): Int {
         if (entries.isEmpty()) return 0
         
         val sortedDates = entries.map { it.date }.sortedDescending()
         val today = LocalDate.now()
         
-        // Check if there's an entry for today or yesterday to start the streak
         val firstDate = sortedDates.firstOrNull() ?: return 0
-        if (firstDate != today && firstDate != today.minusDays(1)) {
-            return 0
-        }
         
         var streak = 1
         var currentDate = firstDate
+        var remainingFreezes = freezesAvailable
+        var freezesConsumed = 0
+        
+        // Check if there's an entry for today or yesterday. If not, check if we can use freezes.
+        val daysSinceFirst = java.time.temporal.ChronoUnit.DAYS.between(firstDate, today).toInt()
+        if (daysSinceFirst > 1) {
+            val missedDays = daysSinceFirst - 1 // If firstDate is 2 days ago, missed 1 day
+            if (remainingFreezes >= missedDays) {
+                remainingFreezes -= missedDays
+                freezesConsumed += missedDays
+                streak += missedDays // Count the frozen days as part of the streak? Or just bridge them? Usually freezes don't add to the count, just bridge. Wait, usually streak freezes keep the number exactly as it was, but for simplicity we can just add them or leave streak alone. Let's just keep the streak count to not include the missed days, or include them so it doesn't drop. Usually it just bridges.
+                // Let's NOT add missedDays to streak, just bridge.
+            } else {
+                return 0
+            }
+        }
         
         for (i in 1 until sortedDates.size) {
             val nextDate = sortedDates[i]
-            if (nextDate == currentDate.minusDays(1)) {
+            val gap = java.time.temporal.ChronoUnit.DAYS.between(nextDate, currentDate).toInt()
+            
+            if (gap == 1) {
                 streak++
                 currentDate = nextDate
-            } else if (nextDate != currentDate) {
-                break
+            } else if (gap > 1) {
+                val missedDays = gap - 1
+                if (remainingFreezes >= missedDays) {
+                    remainingFreezes -= missedDays
+                    freezesConsumed += missedDays
+                    streak++ // Add the actual entry day
+                    currentDate = nextDate
+                } else {
+                    break
+                }
             }
+        }
+        
+        if (freezesConsumed > 0) {
+            onFreezesConsumed(freezesConsumed)
         }
         
         return streak
