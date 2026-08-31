@@ -8,6 +8,9 @@
     <!-- Google Play Billing -->
     <uses-permission android:name="com.android.vending.BILLING" />
 
+    <!-- Biometric / device security authentication -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- Daily reminder notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

@@ -10,8 +10,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
+import com.onelineaday.dailydiary.security.AppLockManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -275,49 +274,83 @@ fun SettingsScreen(
                     SettingsToggleItem(
                         icon = Icons.Rounded.Lock,
                         title = stringResource(R.string.settings_app_lock),
-                        subtitle = stringResource(R.string.settings_app_lock_subtitle),
+                        subtitle = if (appLockEnabled) {
+                            "Protected with device authentication"
+                        } else {
+                            "Require fingerprint, face, PIN, pattern, or password"
+                        },
                         isChecked = appLockEnabled,
-                        onCheckedChange = { enable ->
-                            if (enable) {
-                                // Prompt biometric before enabling
-                                val activity = context as? FragmentActivity
-                                if (activity != null) {
-                                    val executor = ContextCompat.getMainExecutor(context)
-                                    val prompt = BiometricPrompt(activity, executor,
-                                        object : BiometricPrompt.AuthenticationCallback() {
-                                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                                super.onAuthenticationSucceeded(result)
-                                                appLockEnabled = true
-                                                prefs.edit().putBoolean("app_lock", true).apply()
-                                                Toast.makeText(context, "App Lock Enabled", Toast.LENGTH_SHORT).show()
-                                            }
-
-                                            override fun onAuthenticationFailed() {
-                                                super.onAuthenticationFailed()
-                                                Toast.makeText(context, "Authentication failed", Toast.LENGTH_SHORT).show()
-                                            }
-                                            
-                                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                                                super.onAuthenticationError(errorCode, errString)
-                                                Toast.makeText(context, "Cannot enable: $errString", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    )
-                                    
-                                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                                        .setTitle("Enable App Lock")
-                                        .setSubtitle("Authenticate to enable App Lock")
-                                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                                        .build()
-                                        
-                                    prompt.authenticate(promptInfo)
-                                } else {
-                                    Toast.makeText(context, "App Lock not supported on this device", Toast.LENGTH_SHORT).show()
-                                }
+                        onCheckedChange = { shouldEnable ->
+                            val activity = context as? FragmentActivity
+                            if (activity == null) {
+                                Toast.makeText(
+                                    context,
+                                    "App Lock is not supported on this device.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (!AppLockManager.canAuthenticate(context)) {
+                                /*
+                                 * IMPORTANT:
+                                 *
+                                 * Never enable App Lock if the user
+                                 * currently has no way to authenticate.
+                                 */
+                                Toast.makeText(
+                                    context,
+                                    "Set up a fingerprint, face unlock, PIN, pattern, or password first.",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             } else {
-                                appLockEnabled = false
-                                prefs.edit().putBoolean("app_lock", false).apply()
-                                Toast.makeText(context, "App Lock Disabled", Toast.LENGTH_SHORT).show()
+                                /*
+                                 * Authenticate BOTH when enabling
+                                 * and disabling the lock.
+                                 *
+                                 * This prevents someone who gets access
+                                 * to an already-unlocked diary from simply
+                                 * switching off protection.
+                                 */
+                                AppLockManager.authenticate(
+                                    activity = activity,
+                                    title = if (shouldEnable) {
+                                        "Enable App Lock"
+                                    } else {
+                                        "Disable App Lock"
+                                    },
+                                    subtitle = if (shouldEnable) {
+                                        "Confirm your identity before protecting your diary"
+                                    } else {
+                                        "Confirm your identity before removing diary protection"
+                                    },
+                                    onSuccess = {
+                                        AppLockManager.setEnabled(
+                                            context,
+                                            shouldEnable
+                                        )
+                                        appLockEnabled = shouldEnable
+                                        Toast.makeText(
+                                            context,
+                                            if (shouldEnable) {
+                                                "App Lock enabled"
+                                            } else {
+                                                "App Lock disabled"
+                                            },
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    onCancelled = {
+                                        /*
+                                         * Do absolutely nothing.
+                                         * Toggle stays in its original state.
+                                         */
+                                    },
+                                    onError = { error ->
+                                        Toast.makeText(
+                                            context,
+                                            error,
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                )
                             }
                         }
                     )

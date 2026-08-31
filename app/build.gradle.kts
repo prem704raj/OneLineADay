@@ -109,7 +109,7 @@ dependencies {
     // -------------------------
 
     implementation(
-        "androidx.biometric:biometric:1.2.0-alpha05"
+        "androidx.biometric:biometric:1.1.0"
     )
 
     // -------------------------
