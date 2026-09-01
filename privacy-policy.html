@@ -1,298 +1,311 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - One Line A Day</title>
-    <!-- Modern Google Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #9333ea;
-            --primary-light: #a855f7;
-            --primary-gradient: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
-            --bg-dark: #090514;
-            --card-bg: rgba(255, 255, 255, 0.03);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --text-main: #f3e8ff;
-            --text-muted: #c084fc;
-            --text-dim: #9ca3af;
-        }
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
+    <meta
+        name="description"
+        content="Privacy Policy for One Line A Day."
+    >
+
+    <title>Privacy Policy - One Line A Day</title>
+
+    <style>
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            line-height: 1.6;
-            padding: 40px 20px;
-            overflow-x: hidden;
-            position: relative;
+            margin: 0;
+            padding: 32px 20px;
+            font-family:
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            line-height: 1.7;
+            background: #fafafa;
+            color: #202124;
         }
 
-        /* Decorative Background Orbs */
-        body::before {
-            content: '';
-            position: absolute;
-            top: -200px;
-            left: -200px;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(147, 51, 234, 0.15) 0%, rgba(0,0,0,0) 70%);
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        body::after {
-            content: '';
-            position: absolute;
-            bottom: -200px;
-            right: -200px;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(236, 72, 153, 0.12) 0%, rgba(0,0,0,0) 70%);
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        .container {
-            max-width: 800px;
+        main {
+            max-width: 820px;
             margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Premium Glassmorphic Header */
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-            padding: 40px;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            display: inline-block;
-            filter: drop-shadow(0 0 15px rgba(147, 51, 234, 0.5));
+            background: white;
+            padding: 36px;
+            border-radius: 20px;
         }
 
         h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-            letter-spacing: -0.5px;
-        }
-
-        .subtitle {
-            font-size: 1.1rem;
-            color: var(--text-muted);
-            font-weight: 300;
-        }
-
-        .last-updated {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            margin-top: 15px;
-        }
-
-        /* Content Card Styling */
-        main {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            backdrop-filter: blur(12px);
-            padding: 40px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        section {
-            margin-bottom: 35px;
-        }
-
-        section:last-of-type {
-            margin-bottom: 0;
+            margin-top: 0;
         }
 
         h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--primary-light);
-            margin-bottom: 15px;
-            border-bottom: 1px solid var(--card-border);
-            padding-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            margin-top: 36px;
         }
 
-        p {
-            font-size: 1.05rem;
-            color: rgba(243, 232, 255, 0.85);
-            margin-bottom: 15px;
-            font-weight: 300;
+        .updated {
+            color: #666;
         }
 
-        p strong {
-            font-weight: 600;
-            color: var(--text-main);
-        }
-
-        ul {
-            list-style: none;
-            margin-bottom: 15px;
-            padding-left: 5px;
-        }
-
-        li {
-            position: relative;
-            padding-left: 25px;
-            margin-bottom: 10px;
-            font-size: 1.05rem;
-            color: rgba(243, 232, 255, 0.85);
-            font-weight: 300;
-        }
-
-        li::before {
-            content: '✦';
-            position: absolute;
-            left: 0;
-            color: var(--primary-light);
-        }
-
-        .highlight-box {
-            background: rgba(147, 51, 234, 0.1);
-            border-left: 4px solid var(--primary-light);
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .highlight-box p {
-            margin-bottom: 0;
-            font-weight: 400;
-            color: var(--text-main);
+        .notice {
+            padding: 18px;
+            border-radius: 12px;
+            background: #f4f4f4;
+            margin: 24px 0;
         }
 
         a {
-            color: var(--primary-light);
-            text-decoration: none;
-            border-bottom: 1px dashed var(--primary-light);
-            transition: all 0.2s ease;
+            color: #005fcc;
         }
 
-        a:hover {
-            color: #fff;
-            border-bottom-style: solid;
-        }
-
-        footer {
-            text-align: center;
-            margin-top: 40px;
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-
-        /* Responsive adjustments */
         @media (max-width: 600px) {
             body {
-                padding: 20px 10px;
+                padding: 12px;
             }
-            header, main {
-                padding: 25px 20px;
-            }
-            h1 {
-                font-size: 1.8rem;
-            }
-            h2 {
-                font-size: 1.3rem;
+
+            main {
+                padding: 24px 18px;
+                border-radius: 14px;
             }
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <header>
-            <div class="logo">📝</div>
-            <h1>Privacy Policy</h1>
-            <div class="subtitle">One Line A Day — Your Private Local Journal</div>
-            <div class="last-updated">Last Updated: May 31, 2026</div>
-        </header>
 
-        <main>
-            <section>
-                <h2>1. Overview</h2>
-                <p>Welcome to <strong>One Line A Day</strong>. We respect your privacy and are committed to protecting it. This Privacy Policy details how we handle information in the application.</p>
-                <div class="highlight-box">
-                    <p><strong>Local-First Guarantee:</strong> One Line A Day is a local-first application. All of your journal entries, selected moods, and photo attachments are stored directly and exclusively on your device. We do not operate servers, and we do not collect, transmit, share, or sell your personal data.</p>
-                </div>
-            </section>
+<main>
 
-            <section>
-                <h2>2. Information Collection and Storage</h2>
-                <p>All data processed by the application is kept private and stored locally on your device:</p>
-                <ul>
-                    <li><strong>Journal Entries & Moods:</strong> Written entries and mood selections are stored in a local, encrypted-by-default SQLite database managed by the Android Room database framework.</li>
-                    <li><strong>Photos:</strong> When you attach photos to your journal entries, the app copies the image files into its private internal application directory (<code>filesDir</code>). These files are inaccessible to other apps and are not uploaded to any server.</li>
-                    <li><strong>Configuration Data:</strong> Application settings, including your dark mode preference and reminder schedules, are saved locally on the device using Android SharedPreferences and DataStore.</li>
-                </ul>
-            </section>
+    <h1>Privacy Policy</h1>
 
-            <section>
-                <h2>3. Device Permissions</h2>
-                <p>To support its core journaling features, the app requests the following system permissions:</p>
-                <ul>
-                    <li><strong>Notifications (<code>POST_NOTIFICATIONS</code>):</strong> Used only to deliver daily reminder alerts prompting you to write your entry. This permission is requested at runtime on supported Android versions, and you can disable reminders or permissions at any time.</li>
-                    <li><strong>Receive Boot Completed (<code>RECEIVE_BOOT_COMPLETED</code>):</strong> Used to automatically restore and reschedule your configured daily reminder notifications whenever your device is restarted.</li>
-                    <li><strong>Microphone (<code>RECORD_AUDIO</code>):</strong> Used only if you choose to record voice memos to attach to your journal entries. This permission is requested at runtime and is never used without your explicit action.</li>
-                </ul>
-                <p>The app does not request or require permissions to access your contacts, location, accounts, camera, or general external file storage directories.</p>
-            </section>
+    <p>
+        <strong>One Line A Day</strong>
+    </p>
 
-            <section>
-                <h2>4. Third-Party Libraries</h2>
-                <p>The app uses a small number of open-source third-party dependencies to improve functionality:</p>
-                <ul>
-                    <li><strong>Coil:</strong> Used locally to load and display attached images on the screens.</li>
-                    <li><strong>iText PDF:</strong> Used locally on your device to compile and render your journal database into a shareable PDF format.</li>
-                </ul>
-                <p>These libraries operate fully locally within the app and do not collect, store, or transmit your personal data externally.</p>
-            </section>
+    <p class="updated">
+        Last updated: August 31, 2026
+    </p>
 
-            <section>
-                <h2>5. Security of Your Data</h2>
-                <p>Because all data remains strictly on your own physical device, the security of your journal relies on your device's overall security settings. We recommend securing your device with a PIN, pattern, password, or biometric lock to prevent unauthorized physical access to your device and journal entries.</p>
-            </section>
 
-            <section>
-                <h2>6. Children's Privacy</h2>
-                <p>Our application is completely safe for all users, including children. We do not collect any personal data whatsoever, making the application fully compliant with child privacy laws globally, including COPPA and GDPR.</p>
-            </section>
+    <h2>1. Overview</h2>
 
-            <section>
-                <h2>7. Contact Us</h2>
-                <p>If you have any questions, suggestions, or concerns regarding this privacy policy, feel free to contact us via email:</p>
-                <p><strong>Developer Support:</strong> <a href="mailto:developeraisteps@gmail.com">developeraisteps@gmail.com</a></p>
-            </section>
-        </main>
+    <p>
+        One Line A Day is designed as a local-first journaling
+        application. Your journal entries, moods, tags, attached
+        media, and voice notes are primarily stored in the app's
+        private storage on your device.
+    </p>
 
-        <footer>
-            <p>&copy; 2026 One Line A Day. Built with care for your privacy.</p>
-        </footer>
+    <div class="notice">
+        <strong>Important:</strong>
+        We do not operate our own account or journal-sync server,
+        and your private journal content is not intentionally sent
+        to us for advertising or analytics. However, the app uses
+        third-party Google services for advertising and purchases.
+        Those services may process technical device and usage data.
     </div>
+
+
+    <h2>2. Journal Data Stored on Your Device</h2>
+
+    <p>
+        Journal entries, moods, dates, tags, streak information,
+        and related metadata are stored using Android Room and
+        SQLite within application-private storage.
+    </p>
+
+    <p>
+        Photos, videos, and voice recordings that you attach may
+        also be copied into private application storage.
+    </p>
+
+    <p>
+        One Line A Day does not currently add its own
+        database-level encryption layer to the Room database.
+        Android and your device may provide device-level storage
+        encryption and security protections.
+    </p>
+
+    <p>
+        You may also enable App Lock, which uses Android's device
+        authentication system.
+    </p>
+
+
+    <h2>3. Advertising and Google Services</h2>
+
+    <p>
+        One Line A Day uses Google Mobile Ads to display
+        advertising, including banner, native, interstitial,
+        and rewarded advertisements.
+    </p>
+
+    <p>
+        Google Mobile Ads may collect or share technical
+        information such as:
+    </p>
+
+    <ul>
+        <li>IP address</li>
+        <li>Approximate location derived from IP address</li>
+        <li>App interactions</li>
+        <li>Diagnostic and performance information</li>
+        <li>Device or advertising identifiers</li>
+    </ul>
+
+    <p>
+        This information may be used for advertising,
+        analytics, fraud prevention, security, and related
+        Google services.
+    </p>
+
+    <p>
+        Journal text, attached journal photos, journal tags,
+        and voice recordings are not intentionally supplied
+        to Google Mobile Ads for advertising.
+    </p>
+
+    <p>
+        The application also uses Google Play Billing for
+        optional premium purchases. Google Play handles
+        payment processing. The app may receive purchase and
+        entitlement information required to determine whether
+        premium features are available. We do not receive your
+        full payment-card details.
+    </p>
+
+    <p>
+        Google's privacy information is available at
+        <a
+            href="https://policies.google.com/privacy"
+            rel="noopener noreferrer"
+        >
+            Google Privacy Policy
+        </a>.
+    </p>
+
+
+    <h2>4. Device Permissions</h2>
+
+    <p>
+        One Line A Day may use the following Android permissions:
+    </p>
+
+    <ul>
+        <li>
+            <strong>Notifications:</strong>
+            Optional daily journal reminders.
+        </li>
+
+        <li>
+            <strong>Microphone:</strong>
+            Used only when you choose to record a voice note.
+        </li>
+
+        <li>
+            <strong>Receive Boot Completed:</strong>
+            Used to restore scheduled reminders after a device restart.
+        </li>
+
+        <li>
+            <strong>Biometric authentication:</strong>
+            Used for the optional App Lock feature.
+        </li>
+
+        <li>
+            <strong>Internet and network state:</strong>
+            Required by services including advertising and Google Play.
+        </li>
+    </ul>
+
+    <p>
+        The application does not request general location,
+        contacts, SMS, call-log, or broad external-storage permissions.
+    </p>
+
+
+    <h2>5. Backup, Export and Sharing</h2>
+
+    <p>
+        Android system backup or device-transfer functionality may
+        back up eligible application database and preference data
+        when those features are enabled on your device or account.
+    </p>
+
+    <p>
+        One Line A Day also provides user-initiated export features.
+        If you export a backup, PDF, image, or other journal file
+        and choose another application or cloud-storage service,
+        the exported data will be handled by the service you select.
+    </p>
+
+    <p>
+        We do not automatically upload your journal entries to our
+        own cloud server.
+    </p>
+
+
+    <h2>6. Security</h2>
+
+    <p>
+        Journal data is stored within Android application-private
+        storage. The application also provides an optional App Lock
+        using Android device authentication.
+    </p>
+
+    <p>
+        No application or security system can guarantee absolute
+        security. We recommend protecting your Android device with
+        a PIN, password, pattern, or supported biometric
+        authentication.
+    </p>
+
+
+    <h2>7. Children's Privacy</h2>
+
+    <p>
+        One Line A Day is not specifically designed as a service
+        directed at children.
+    </p>
+
+    <p>
+        We do not claim that the application is automatically
+        compliant with every child-privacy law worldwide.
+        Additional requirements may apply depending on the target
+        audience, country, advertising configuration, and
+        distribution settings.
+    </p>
+
+
+    <h2>8. Changes to This Policy</h2>
+
+    <p>
+        We may update this Privacy Policy when application features,
+        third-party SDKs, legal requirements, or data practices change.
+        The latest revision date will appear at the top of this page.
+    </p>
+
+
+    <h2>9. Contact</h2>
+
+    <p>
+        For privacy questions or concerns:
+    </p>
+
+    <p>
+        <a href="mailto:developeraisteps@gmail.com">
+            developeraisteps@gmail.com
+        </a>
+    </p>
+
+</main>
+
 </body>
 </html>
