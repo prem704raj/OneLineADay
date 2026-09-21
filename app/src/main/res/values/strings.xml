@@ -135,25 +135,34 @@
     <string name="privacy_v2_section_4_title" translatable="false">4. Device Permissions</string>
     <string name="privacy_v2_section_4_content" translatable="false">Notifications: Used to provide optional daily journal reminders.\n\nMicrophone: Used only when you choose to record a voice note.\n\nReceive Boot Completed: Used to restore scheduled reminder notifications after the device restarts.\n\nBiometric authentication: Used when you enable App Lock so Android can authenticate you using supported device security such as biometrics, PIN, pattern, or password.\n\nInternet and network state: Required by features such as Google Mobile Ads and Google Play services.\n\nThe app does not request general location, contacts, SMS, call log, or broad external-storage permissions.</string>
     <string name="privacy_v2_section_5_title" translatable="false">5. Backup, Export and Sharing</string>
-    <string name="privacy_v2_section_5_content" translatable="false">Android auto-backup of private app data is disabled by default to protect journal privacy. One Line A Day provides explicit user-initiated export features. If you export a journal backup, PDF, image, or other file and choose another application or cloud-storage provider, that exported data will be handled by the destination you select and according to that provider\'s privacy practices.\n\nWe do not automatically upload your journal entries to our own cloud server.</string>
+    <string name="privacy_v2_section_5_content" translatable="false">One Line A Day disables Android automatic app backup (allowBackup=false) for journal data in the current release to protect journal privacy. If you use user-initiated export features such as PDF or ZIP backup and choose another application or cloud-storage provider, that exported data will be handled by the destination you select and according to that provider\'s privacy practices.\n\nWe do not automatically upload your journal entries to our own cloud server.</string>
     <string name="privacy_v2_section_6_title" translatable="false">6. Security</string>
     <string name="privacy_v2_section_6_content" translatable="false">Journal data is stored within Android application-private storage. The app also provides an optional App Lock that uses Android device authentication.\n\nNo application or security system can guarantee absolute security. You should keep your Android device protected with a PIN, password, pattern, or supported biometric authentication and keep the operating system updated.</string>
     <string name="privacy_v2_section_7_title" translatable="false">7. Children\'s Privacy</string>
     <string name="privacy_v2_section_7_content" translatable="false">One Line A Day is not specifically designed as a service directed at children. We do not claim that the application is automatically compliant with every child-privacy law in every country.\n\nIf the application is distributed to audiences that include children, additional Google Play Families, advertising, consent, and regional legal requirements may apply.</string>
     <string name="privacy_v2_section_8_title" translatable="false">8. Contact and Policy Updates</string>
     <string name="privacy_v2_section_8_content" translatable="false">We may update this Privacy Policy when the application, third-party SDKs, legal requirements, or data practices change.\n\nFor privacy questions or concerns, contact:\n\ndeveloperaisteps@gmail.com</string>
-    <string name="settings_ad_privacy_choices">Ad privacy choices</string>
-    <string name="settings_ad_privacy_choices_subtitle">Review your advertising privacy choices</string>
+
+    <!-- Reminder strings -->
     <string name="reminder_channel_name">Daily journal reminder</string>
     <string name="reminder_channel_description">A gentle daily reminder to write your line</string>
     <string name="reminder_message_1">How was your day? Capture one thing you want to remember.</string>
     <string name="reminder_message_2">Your journal is ready when you are.</string>
-    <string name="reminder_message_3">A few seconds is enough to save today’s memory.</string>
+    <string name="reminder_message_3">A few seconds is enough to save today\'s memory.</string>
     <string name="reminder_message_4">What is one thing worth remembering from today?</string>
+
+    <!-- Navigation -->
+    <string name="journey">Journey</string>
+
+    <!-- Tags -->
     <string name="tags_placeholder">Add tags separated by a comma or space</string>
     <string name="remove_tag">Remove tag %1$s</string>
+
+    <!-- Stats / Heatmap -->
     <string name="stats_activity_graph">Writing activity</string>
     <string name="stats_heatmap_description">%1$d active writing days in the last 15 weeks</string>
+
+    <!-- Audio -->
     <string name="voice_memory">Voice memory</string>
     <string name="play_voice_memory">Play voice memory</string>
     <string name="pause_voice_memory">Pause voice memory</string>
@@ -163,11 +172,36 @@
     <string name="recording_start_failed">Could not start recording</string>
     <string name="recording_failed">Audio recording failed</string>
     <string name="delete_audio">Delete audio</string>
+    <string name="tap_to_listen">Tap to listen</string>
+
+    <!-- Photo -->
     <string name="attached_photo">Attached photo</string>
     <string name="image_unavailable">Image unavailable</string>
     <string name="original_photo_deleted">Original photo was deleted</string>
     <string name="photo_thumbnail">Photo thumbnail</string>
-    <string name="premium_unavailable">Unavailable</string>
+
+    <!-- Mood Trend -->
+    <string name="mood_not_enough_data">Not enough data to show mood trend.</string>
+    <string name="mood_trend_title">30-Day Mood Trend</string>
+    <string name="mood_trend_older">Older</string>
+    <string name="mood_trend_recent">Recent</string>
+    <string name="mood_trend_description">30-day mood trend chart: %1$d entries recorded, overall mood is %2$s.</string>
+    <string name="mood_summary_positive">predominantly positive and joyful</string>
+    <string name="mood_summary_balanced">balanced and steady</string>
+    <string name="mood_summary_reflective">reflective and calm</string>
+
+    <!-- Premium -->
+    <string name="premium_go_premium">Go Premium</string>
+    <string name="premium_description">Remove all ads forever, unlock all custom themes, and support future development.</string>
+    <string name="premium_continue">Continue</string>
+    <string name="premium_restore">Restore Purchases</string>
     <string name="premium_best_value">BEST VALUE</string>
-    <string name="premium_plan_unavailable">This plan is currently unavailable.</string>
+    <string name="premium_unavailable">Unavailable</string>
+    <string name="premium_plan_unavailable">This plan is not available right now</string>
+    <string name="premium_debug_title">🧪 Developer Testing Mode</string>
+    <string name="premium_debug_message">Google Play catalog is offline or not configured.</string>
+
+    <!-- Ad Privacy -->
+    <string name="ad_privacy_choices">Ad privacy choices</string>
+    <string name="ad_privacy_subtitle">Review your advertising privacy choices</string>
 </resources>

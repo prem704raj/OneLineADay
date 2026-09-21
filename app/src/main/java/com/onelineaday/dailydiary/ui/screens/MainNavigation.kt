@@ -50,7 +50,7 @@ sealed class Screen(
     
     data object Stats : Screen(
         route = "stats",
-        titleRes = R.string.stats,
+        titleRes = R.string.journey,
         selectedIcon = Icons.Filled.Insights,
         unselectedIcon = Icons.Outlined.Insights
     )

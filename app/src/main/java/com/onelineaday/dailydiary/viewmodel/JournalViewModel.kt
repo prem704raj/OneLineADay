@@ -115,6 +115,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         }
 
         _activeJournalId.value = journalId
+        com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
         setSelectedDate(_selectedDate.value)
     }
     

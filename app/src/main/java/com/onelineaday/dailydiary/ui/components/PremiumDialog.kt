@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.onelineaday.dailydiary.BuildConfig
 import com.onelineaday.dailydiary.PremiumManager
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.billing.BillingManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,8 +61,11 @@ fun PremiumDialog(
     val monthlyAvailable = monthlyRawPrice != null
     val lifetimeAvailable = lifetimeRawPrice != null
 
-    val monthlyPrice = monthlyRawPrice ?: if (isLoading) "..." else "Unavailable"
-    val lifetimePrice = lifetimeRawPrice ?: if (isLoading) "..." else "Unavailable"
+    val unavailableLabel = stringResource(R.string.premium_unavailable)
+    val planUnavailableMessage = stringResource(R.string.premium_plan_unavailable)
+
+    val monthlyPrice = monthlyRawPrice ?: if (isLoading) "..." else unavailableLabel
+    val lifetimePrice = lifetimeRawPrice ?: if (isLoading) "..." else unavailableLabel
 
     val premiumGradient = Brush.linearGradient(
         colors = listOf(
@@ -126,7 +131,7 @@ fun PremiumDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Go Premium",
+                    text = stringResource(R.string.premium_go_premium),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -135,7 +140,7 @@ fun PremiumDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Remove all ads forever, unlock all custom themes, and support future development.",
+                    text = stringResource(R.string.premium_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -157,7 +162,7 @@ fun PremiumDialog(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "🧪 Developer Testing Mode",
+                                        text = stringResource(R.string.premium_debug_title),
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -209,7 +214,7 @@ fun PremiumDialog(
 
                 // Plans
                 PremiumPlanCard(
-                    title = "Monthly",
+                    title = stringResource(R.string.premium_monthly),
                     price = monthlyPrice,
                     period = "/ month",
                     isSelected = selectedPlan == "monthly",
@@ -220,7 +225,7 @@ fun PremiumDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 PremiumPlanCard(
-                    title = "Lifetime",
+                    title = stringResource(R.string.premium_lifetime),
                     price = lifetimePrice,
                     period = "one-time",
                     isSelected = selectedPlan == "lifetime",
@@ -243,7 +248,7 @@ fun PremiumDialog(
                             val isAvailable = if (isSub) monthlyAvailable else lifetimeAvailable
 
                             if (!isAvailable) {
-                                Toast.makeText(context, "This plan is currently unavailable.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, planUnavailableMessage, Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
 
@@ -280,7 +285,7 @@ fun PremiumDialog(
                         )
                     } else {
                         Text(
-                            text = "Continue",
+                            text = stringResource(R.string.premium_continue),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -300,7 +305,7 @@ fun PremiumDialog(
                     }
                 ) {
                     Text(
-                        text = "Restore Purchases",
+                        text = stringResource(R.string.premium_restore),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -390,7 +395,7 @@ private fun PremiumPlanCard(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "BEST VALUE",
+                                text = stringResource(R.string.premium_best_value),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White

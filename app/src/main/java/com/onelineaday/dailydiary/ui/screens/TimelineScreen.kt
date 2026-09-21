@@ -38,6 +38,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -472,12 +474,12 @@ fun EditEntryDialog(
     onSave: (String, Mood, String?, List<String>, List<String>) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isImportingMedia by remember { mutableStateOf(false) }
     var editedText by remember { mutableStateOf(entry.content) }
     var editedMood by remember { mutableStateOf(entry.mood) }
     var editedMediaUris by remember { mutableStateOf(entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }) }
     var editedTags by remember { mutableStateOf(entry.tags) }
+    val scope = rememberCoroutineScope()
+    var isImportingMedia by remember { mutableStateOf(false) }
     
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -141,7 +141,6 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     val activeJournalName = uiState.journals.firstOrNull { it.id == uiState.activeJournalId }?.name
                     if (uiState.journals.size > 1 && activeJournalName != null) {
                         Text(

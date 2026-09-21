@@ -153,3 +153,4 @@ class JournalMigrationTest {
         migrated.close()
     }
 }
+

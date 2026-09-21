@@ -357,7 +357,7 @@ fun AudioPlayerView(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Tap to listen",
+                    text = stringResource(R.string.tap_to_listen),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

@@ -159,3 +159,4 @@ class BackupRestoreInstrumentedTest {
         assertTrue("Restore should fail for malicious file ID", result is BackupRestoreResult.Failure)
     }
 }
+

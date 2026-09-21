@@ -13,8 +13,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
 import java.time.LocalDate
@@ -33,7 +35,7 @@ fun MoodTrendChart(
         .sortedBy { it.date }
         
     if (recentEntries.isEmpty()) {
-        Text("Not enough data to show mood trend.", modifier = modifier.padding(16.dp))
+        Text(stringResource(R.string.mood_not_enough_data), modifier = modifier.padding(16.dp))
         return
     }
 
@@ -49,23 +51,24 @@ fun MoodTrendChart(
 
     val averageMoodScore = moodValues.average()
     val moodSummary = when {
-        averageMoodScore >= 3.8 -> "predominantly positive and joyful"
-        averageMoodScore >= 2.5 -> "balanced and steady"
-        else -> "reflective and calm"
+        averageMoodScore >= 3.8 -> stringResource(R.string.mood_summary_positive)
+        averageMoodScore >= 2.5 -> stringResource(R.string.mood_summary_balanced)
+        else -> stringResource(R.string.mood_summary_reflective)
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+    val trendDescription = stringResource(R.string.mood_trend_description, recentEntries.size, moodSummary)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .semantics {
-                contentDescription = "30-day mood trend chart: ${recentEntries.size} entries recorded, overall mood is $moodSummary."
+                contentDescription = trendDescription
             }
     ) {
         Text(
-            text = "30-Day Mood Trend",
+            text = stringResource(R.string.mood_trend_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -122,8 +125,8 @@ fun MoodTrendChart(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Older", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Recent", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.mood_trend_older), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.mood_trend_recent), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
