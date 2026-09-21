@@ -1,0 +1,77 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+
+# Gradle files
+.gradle/
+local.properties
+
+# Android Studio
+/.idea/
+*.iml
+
+# NDK
+obj/
+
+# Local configuration file
+local.properties
+
+# Proguard folder
+proguard/
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keystore files
+*.jks
+*.keystore
+
+# Temporary files
+*.tmp
+*.swp
+
+# Build outputs
+/build
+/app/build
+/captures
+
+# Release signing
+signing.properties
+
+# Project exclude paths
+/temp_tools/
+
+# Temporary and log files
+*.zip
+*_log.txt
+*_output.txt
+log.txt
+
+# Temporary helper scripts
+commit_101.py
+update_icon.py
+
+# Gemini IDE
+.gemini/

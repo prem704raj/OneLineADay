@@ -1,0 +1,4896 @@
+ONE LINE A DAY — MASTER PRODUCTION AUDIT
+Repository: https://github.com/prem704raj/OneLineADay
+Branch audited: master
+Source snapshot: eec9f86d62d72898aa52f2b62181a7bc1fc7a41b
+Audit date: 2026-09-10
+Package/applicationId: com.onelineaday.dailydiary
+
+IMPORTANT SCOPE / VERIFICATION NOTE
+===================================
+This report treats the Kotlin/XML/Gradle implementation on master as the source of truth.
+README, privacy documentation, helper scripts, and marketing statements were checked for
+mismatches but were not trusted over implementation.
+
+The repository was read through the connected GitHub source integration. A local Gradle
+build could not be executed in this environment because the container could not resolve
+github.com when cloning. Therefore build tasks are marked NOT RUN, not PASS or FAIL.
+
+Priority:
+P0 Critical = data corruption/loss/security/unsafe restore
+P1 High = core reliability/purchases/Play blockers
+P2 Medium = material UX/performance/accessibility/architecture
+P3 Low = polish/cleanup
+
+Status:
+✅ Verified structurally sound
+⚠️ Works but important problems
+🟡 Partial
+❌ Confirmed broken/untrustworthy
+🚫 Missing
+🧪 Implemented but not adequately tested
+❓ Runtime verification required
+🗑️ Dead/obsolete
+
+
+## A. Executive Summary
+=======================
+
+RELEASE DECISION: NO-GO FOR PRODUCTION.
+
+The app already has a useful micro-journal foundation, but the current build should not
+be trusted with years of irreplaceable memories yet.
+
+The most important confirmed problems are:
+
+1. P0 — Restore is not atomic or failure-safe.
+   File:
+   app/src/main/java/com/onelineaday/dailydiary/viewmodel/JournalViewModel.kt
+   Function: importBackup()
+   It extracts attacker-controlled ZIP entries directly over live production database/media
+   files while the Room singleton is open. There is no staging, integrity verification,
+   rollback, archive format version, size limit, duplicate-entry protection, or canonical
+   path validation.
+
+2. P0 — Backup is not a trustworthy Room snapshot.
+   File: JournalViewModel.kt
+   Function: exportBackup()
+   It copies journal_database, -wal and -shm files while Room remains open. A raw copy of
+   a live WAL database is not a robust portable backup architecture.
+
+3. P0 — Home edit can silently lose tags and additional media references.
+   Files:
+   ui/screens/HomeScreen.kt
+   viewmodel/JournalViewModel.kt
+   Home restores only content/mood/photoUri and calls saveEntry() without existing tags
+   and full mediaUris. saveEntry() overwrites those fields with default empty lists.
+
+4. P0 — Imported ZIP path traversal is possible inside the app sandbox.
+   File: JournalViewModel.kt
+   Function: importBackup()
+   For example media/../../something becomes File(filesDir, "../../something").
+   There is no canonical-path containment check.
+
+5. P1 — Date rollover can write to yesterday after midnight.
+   File: JournalViewModel.kt
+   _selectedDate is initialized once with LocalDate.now(). The "today" Room Flow is also
+   created for one LocalDate value and no midnight boundary refresh exists. A long-running
+   process can continue saving to the old calendar day.
+
+6. P1 — Multiple journals are not end-to-end isolated.
+   File: JournalViewModel.kt
+   setSelectedDate() and search() omit activeJournalId and repository methods default to
+   "default". The data model supports journal IDs, but the UI has no complete journal
+   manager/switcher and several consumers still assume the default journal.
+
+7. P1 — Search/date observation accumulates long-lived Flow collectors.
+   File: JournalViewModel.kt
+   Every search keystroke and each setSelectedDate call launches a new collect() job with
+   no cancellation/flatMapLatest.
+
+8. P1 — Streak freeze calculation mutates inventory during ordinary reads.
+   Files:
+   data/JournalRepository.kt
+   viewmodel/JournalViewModel.kt
+   calculateStreak() calls onFreezesConsumed(), and loadData() invokes it whenever the
+   entries Flow emits. Recalculation can drain freeze state.
+
+9. P1 — Streak calculation contradicts its own intended logic.
+   File: JournalRepository.kt
+   It executes `streak += missedDays` while the immediately following comment states
+   missed frozen days should not be added.
+
+10. P1 — Voice notes collide across journals.
+    File: ui/components/AudioAttachment.kt
+    Filename is audio_<date>.m4a. journalId is not part of the identity and audio is not
+    referenced by JournalEntry at all.
+
+11. P1 — Media lifecycle is unsafe/incomplete.
+    File: JournalViewModel.kt
+    saveMediaToInternal() copies arbitrary bytes but forces .jpg/.mp4 extensions, may return
+    a path when openInputStream() returned null, uses timestamp filenames, runs synchronously
+    from Compose callbacks, and deletion leaves orphaned private files.
+
+12. P1 — Widget bypasses App Lock privacy and journal selection.
+    File: widget/JournalWidget.kt
+    It displays actual diary text regardless of App Lock and queries default journal only.
+
+13. P1 — Ad consent/CMP is missing.
+    File: OneLineApp.kt initializes MobileAds and preloads full-screen ads at process start.
+    Banner/native/interstitial/rewarded requests have no UMP canRequestAds() gate.
+
+14. P1 — Billing version is unsupported for new Play submissions/updates.
+    app/build.gradle.kts uses billing-ktx:6.1.0.
+    In September 2026 PBL 6 is beyond its November 1, 2025 extension deadline.
+
+15. P1 — Premium entitlement accepts unrelated products.
+    File: billing/BillingManager.kt
+    Any PURCHASED SUBS or INAPP result can set premium=true. purchase.products is not
+    restricted to premium_monthly / premium_lifetime.
+
+16. P1 — No automated tests and no CI.
+    app/src/test and app/src/androidTest are absent; .github/workflows is absent.
+
+17. P2 — Recents/screenshot privacy is not addressed.
+    App Lock protects navigation UI, not Android Recents previews. No setRecentsScreenshotEnabled
+    or FLAG_SECURE policy exists.
+
+18. P2 — Localization is far from production quality.
+    Many Kotlin files hardcode English. Arabic resources include semantic mistranslations,
+    PLACEHOLDER0 leakage, English leftovers, and stale false privacy strings.
+
+19. P2 — Accessibility failures exist.
+    Several controls are explicitly 16/28/32/36dp; charts/heatmap lack semantic equivalents;
+    light orange + white and teal foreground combinations fail normal-text contrast.
+
+20. P2 — Product experience is too ad-heavy for a private journal.
+    Native ads are inserted every two memories and interstitials appear every three save/edit
+    events.
+
+Positive foundations worth keeping:
+- composite (date, journalId) primary key concept,
+- no fallbackToDestructiveMigration(),
+- minSdk 26 + targetSdk/compileSdk 36,
+- FileProvider is not exported,
+- no broad storage/location/contact/SMS permissions,
+- notification text does not expose journal content,
+- AppLockManager now supports biometric OR Android device credential correctly,
+- PDF generation already uses Dispatchers.IO,
+- internal media copying avoids long-term dependence on picker URIs,
+- one shared JournalViewModel is used across main navigation.
+
+
+## B. Stack & Repository Map
+============================
+
+ACTUAL MODULES
+- Single Android application module: :app
+- No library modules.
+- No backend/server module.
+- No Firebase.
+- No custom HTTP API layer.
+- No fragments for UI; FragmentActivity is used for BiometricPrompt compatibility.
+
+BUILD
+- build.gradle.kts
+  AGP 9.2.1
+  Kotlin 2.2.10
+  KSP 2.3.2
+  Kotlin Compose plugin 2.2.10
+- settings.gradle.kts
+  :app only
+- Gradle wrapper distribution: 9.4.1
+- Java/Kotlin target: 17
+- compileSdk: 36
+- targetSdk: 36
+- minSdk: 26
+- versionCode: 7
+- versionName: 4.3
+- release: R8 minification + resource shrinking enabled
+
+APP ENTRY
+- app/src/main/AndroidManifest.xml
+- OneLineApp.kt
+- MainActivity.kt
+
+DATA
+- data/Journal.kt
+- data/JournalEntry.kt
+- data/JournalDao.kt
+- data/JournalDatabase.kt
+- data/JournalRepository.kt
+- viewmodel/JournalViewModel.kt
+
+SECURITY
+- security/AppLockManager.kt
+- ui/screens/LockScreen.kt
+- MainActivity lifecycle gate
+
+ADS
+- ads/BannerAdView.kt
+- ads/NativeAdCard.kt
+- ads/InterstitialAdManager.kt
+- ads/RewardedAdManager.kt
+- OneLineApp.kt initializes/preloads
+
+BILLING
+- billing/BillingManager.kt
+- PremiumManager.kt
+- ui/components/PremiumDialog.kt
+
+NOTIFICATIONS
+- notifications/ReminderManager.kt
+- ReminderReceiver
+- BootReceiver
+
+AUDIO
+- audio/AudioRecorderHelper.kt
+- audio/AudioPlayerHelper.kt
+- ui/components/AudioAttachment.kt
+
+MEDIA
+- ui/components/PhotoAttachment.kt
+- ui/components/MediaGallery.kt
+- Coil + coil-video
+- FileProvider
+- internal filesDir copies
+
+EXPORT
+- utils/PdfExportHelper.kt
+- utils/ShareImageHelper.kt
+- ZIP code currently embedded in JournalViewModel
+
+WIDGET
+- widget/JournalWidget.kt
+- res/layout/widget_journal.xml
+- res/xml/widget_info.xml
+
+UI SCREENS
+- HomeScreen.kt
+- TimelineScreen.kt
+- EntryDetailScreen.kt
+- StatsScreen.kt
+- SettingsScreen.kt
+- PrivacyPolicyScreen.kt
+- LockScreen.kt
+- MainNavigation.kt
+
+COMPONENTS
+- AudioAttachment
+- CalendarHeatmap
+- EntryCard
+- MediaGallery
+- MoodPicker
+- MoodTrendChart
+- PhotoAttachment
+- PremiumDialog
+- StatsCards
+- StylishText
+- TagInput
+- plus smaller project components
+
+THEME
+- Color.kt
+- Theme.kt
+- Type.kt
+- runtime Google Fonts provider: Outfit + Inter
+
+LOCALIZATION
+- values (English)
+- values-hi
+- values-bn
+- values-ur
+- values-ar
+- values-es
+- values-pt
+- values-fr
+- values-de
+- values-id
+- values-tr
+- values-ru
+- values-ja
+- values-ko
+- values-zh
+
+ROOT NON-PRODUCTION FILES
+- README.md
+- privacy-policy.html
+- competitor_review_analysis.md (for unrelated “Unveil” couples app)
+- commit_101.py
+- fix_imports.py
+- fix_xml.py
+- rename_pkg.py
+- translate.py
+- translate_fast.py
+- translate_hi.py
+- translate_missing.py
+- update_icon.py
+- update_icons.ps1
+- count.txt
+- out.txt
+
+TESTS / CI
+- app/src/test: missing
+- app/src/androidTest: missing
+- .github/workflows: missing
+
+
+## C. Architecture
+==================
+
+CURRENT ARCHITECTURE
+
+Compose Screen
+    |
+    v
+JournalViewModel (AndroidViewModel)
+    |
+    v
+JournalRepository
+    |
+    v
+JournalDao
+    |
+    v
+Room journal_database
+
+Side systems are called directly from UI:
+- ReminderManager from Settings
+- BillingManager singleton
+- Ad manager singletons
+- PdfExportHelper
+- FileProvider
+- Audio helpers
+- Widget talks directly to Room
+- backup/restore code lives inside JournalViewModel
+
+GOOD:
+- Core Room layering is simple and understandable.
+- ViewModel is shared across Home/Timeline/Stats/Settings.
+- No unnecessary enterprise clean-architecture framework.
+- Flow is used for Room observation.
+
+PROBLEMS:
+- JournalViewModel owns too many unrelated responsibilities:
+  CRUD + metrics + journal selection + media I/O + ZIP backup + restore + PDF delegation.
+- SettingsScreen is ~46 KB and directly orchestrates notifications, auth, ads, PDF,
+  backup, restore, locale, theme and billing.
+- Data-domain side effects are mixed into calculations (streak freezes).
+- File ownership is not represented in the DB.
+- Audio ownership is completely outside the DB.
+- active journal is inconsistently propagated.
+- Ad/Billing singleton lifecycle is process-global without robust state models.
+- no test seam (Clock, storage manager, billing adapter, consent adapter).
+
+RECOMMENDED TARGET ARCHITECTURE — STILL SIMPLE
+
+Compose
+  -> JournalViewModel
+      -> JournalRepository
+          -> JournalDao / Room
+      -> MediaStorageManager
+      -> BackupArchiveManager
+      -> Clock/DayProvider
+
+Settings
+  -> SettingsViewModel (optional split)
+      -> ReminderScheduler
+      -> AppLockManager
+      -> BackupArchiveManager
+
+Application-level
+  -> AdsConsentManager -> Mobile Ads
+  -> BillingRepository -> BillingClient
+
+Do NOT add Firebase, Hilt, cloud sync, or a new backend merely to “modernize” the app.
+Manual constructor wiring/singletons are sufficient at this project size if lifecycle is correct.
+
+
+## D. Feature Inventory
+=======================
+
+| Feature | Status | Entry Point | Key Files | Storage | Main Risk |
+|---|---|---|---|---|---|
+| Daily text entry | ⚠️ | Home | HomeScreen, JournalViewModel | Room | midnight stale date, draft loss |
+| One entry/date/journal | ✅ structurally | saveEntry | JournalEntry, DAO | composite PK | selected-date bugs still matter |
+| Edit today | ❌ | Home Edit | HomeScreen | Room | wipes tags/extra media |
+| Edit historical | ⚠️ | Timeline dialog | TimelineScreen | Room | no tags; media removal leaks files |
+| Delete | ⚠️ | Entry detail | ViewModel | Room only | files remain; undo copy inconsistent |
+| Undo delete | 🟡 | shake | MainNavigation | memory only | undiscoverable; process death loses undo |
+| Multiple journals | 🟡 | ViewModel only | Journal, ViewModel | Room + prefs | no real UI; wrong-scope queries |
+| Mood tracking | ⚠️ | Home | MoodPicker | Room | hardcoded labels/a11y |
+| Tags | 🟡 | component exists | TagInput | Room JSON | not wired to Home/edit |
+| Photo | ⚠️ | Home | PhotoAttachment | filesDir + Room path | MIME/extension/orphans |
+| Video | 🟡 | Timeline media picker | MediaGallery | filesDir | MIME/extension/perf |
+| Voice notes | ❌ data model | Home/audio UI | AudioAttachment | filesDir only | journal collision/no DB ownership |
+| Timeline | ⚠️ | bottom nav | TimelineScreen | Flow | aggressive ads/search job bug |
+| Search | ❌ multi-journal | Timeline | ViewModel/DAO | SQL LIKE | default journal + job accumulation |
+| Pinned entries | 🧪 | Timeline/detail | ViewModel | Room | duplicate detail action |
+| Current streak | ❌ | Stats/Home | Repository | derived + prefs | freeze mutation/wrong math |
+| Longest streak | 🧪 | Stats | Repository | derived | runtime edge cases untested |
+| Streak freezes | ❌ | data/UI component | Repository/ViewModel | SharedPreferences | recalculation consumes |
+| Stats | ⚠️ | Journey | StatsScreen | derived | “days left” incorrect |
+| Mood distribution | 🧪 | Journey | DAO/StatsCards | SQL/derived | only top 5 shown |
+| Milestones | 🧪 | Journey | StatsScreen | derived | no tests |
+| Heatmap | 🟡 | none | CalendarHeatmap | derived | not wired; no TalkBack |
+| Mood trend | 🟡 | none | MoodTrendChart | derived | not wired; no TalkBack |
+| PDF export | ⚠️ | Settings | PdfExportHelper | cache PDF | Unicode/incomplete fields/license |
+| ZIP backup | ❌ | Settings | JournalViewModel | raw DB/files | unsafe live DB snapshot |
+| ZIP restore | ❌ | Settings | JournalViewModel | overwrites live files | P0 corruption/traversal |
+| Android auto backup | ⚠️ | OS | backup XML | DB + prefs only | attachment mismatch/quota |
+| Reminders | ⚠️ | Settings | ReminderManager | AlarmManager/prefs | timezone drift |
+| Reboot restore | 🧪 | BootReceiver | ReminderManager | prefs | only boot handled |
+| Widget | ❌ privacy | launcher | JournalWidget | Room | App Lock leak/default journal |
+| Dark mode | 🧪 | Settings | Theme/MainActivity | SharedPrefs | runtime tests missing |
+| Theme variants | ⚠️ | Settings | Theme.kt | SharedPrefs | labeled Premium but ungated |
+| Language picker | ⚠️ | Settings | resources | OS locale/prefs | translations incomplete/broken |
+| RTL | 🟡 | manifest | Compose/resources | n/a | hardcoded English/non-mirrored icon |
+| App Lock | ✅ core / ⚠️ perimeter | MainActivity | AppLockManager | SharedPrefs | widget/recents outside protection |
+| Banner ads | ❌ privacy-ready | screens | BannerAdView | network | no UMP |
+| Native ads | ❌ privacy/UX | Timeline | NativeAdCard | network | no UMP; every 2 memories |
+| Interstitial | ❌ UX/privacy | save/edit | Interstitial manager | network | no UMP; interrupts habit |
+| Rewarded | ⚠️ | PDF export | Rewarded manager | network | no UMP/premium preload |
+| Premium billing | ❌ | PremiumDialog | BillingManager | Play + prefs | unsupported lib/entitlement |
+| Privacy policy V2 | ✅ code / ⚠️ repo | Settings | PrivacyPolicyScreen/html | resources | stale old strings/manual console |
+| Share entry image | ⚠️ | Entry Detail | ShareImageHelper | cache | UI-thread bitmap+PNG |
+| Gallery route | 🗑️ | none | MainNavigation | n/a | dead Screen.Gallery |
+
+
+## E. KEEP AS-IS
+================
+
+1. KEEP composite key concept:
+   JournalEntry primaryKeys = ["date", "journalId"].
+   This is the correct base invariant for one daily entry per journal.
+
+2. KEEP minSdk 26.
+   It is reasonable and comfortably supports java.time without desugaring complexity.
+
+3. KEEP targetSdk/compileSdk 36.
+   This satisfies the current Google Play mobile target requirement.
+
+4. KEEP the absence of fallbackToDestructiveMigration().
+   Journal data must never be destroyed because a migration was omitted.
+
+5. KEEP FileProvider android:exported="false".
+
+6. KEEP scoped media selection/no broad storage permission.
+   The app does not request READ/WRITE external storage.
+
+7. KEEP RECORD_AUDIO permission being requested only when the user starts recording.
+
+8. KEEP generic reminder copy.
+   Current notifications do not print private journal entries.
+
+9. KEEP AppLockManager’s central authenticator policy:
+   BIOMETRIC_WEAK | DEVICE_CREDENTIAL.
+   It avoids the prior lockout class of bug.
+
+10. KEEP authentication before disabling App Lock.
+
+11. KEEP PdfExportHelper generation on Dispatchers.IO.
+
+12. KEEP one shared JournalViewModel across main navigation until the responsibilities
+    are split intentionally.
+
+13. KEEP local-first journal content architecture.
+    No source evidence shows journal text being intentionally sent to a custom server.
+
+14. KEEP explicit privacy V2 wording that states Room is not app-level encrypted.
+
+15. KEEP premium suppression concept for ads; repair rewarded + consent rather than
+    replacing the concept.
+
+
+## F. Confirmed Bugs
+===================
+
+F-001 P0 — HOME EDIT DATA LOSS
+File: ui/screens/HomeScreen.kt
+Section: captured-entry Edit button + Save button
+File: viewmodel/JournalViewModel.kt
+Function: saveEntry()
+
+Current:
+- edit populates entryText, selectedMood, photoUri only.
+- save calls saveEntry(entryText, selectedMood, photoUri).
+- default mediaUris/tags are empty.
+- existingEntry.copy() writes those empty lists.
+
+Impact:
+Tags and non-primary media disappear from the database when the user edits today’s line.
+
+Reproduction:
+1. Have an entry containing mediaUris=[A,B] and tags=["work"].
+2. Open Home.
+3. Tap Update Entry.
+4. Change only text.
+5. Save.
+6. Entry now has only primary photo and tags=[].
+
+Fix:
+Carry the entire existing JournalEntry into draft state and submit all unchanged fields.
+See CHANGE OLAD-001 in section AG.
+
+F-002 P0 — ZIP PATH TRAVERSAL
+File: JournalViewModel.kt
+Function: importBackup()
+
+Current:
+File(filesDir, entry.name.removePrefix("media/"))
+
+Attack:
+media/../../shared_prefs/settings.xml
+
+Impact:
+Archive can write outside the intended media destination inside the app sandbox.
+
+Fix:
+Never extract directly to production paths. Stage first and require canonical target
+containment + strict archive path allow-list.
+
+F-003 P0 — RESTORE OVERWRITES LIVE ROOM FILES
+File: JournalViewModel.kt
+Function: importBackup()
+
+Current:
+production DB files are deleted/replaced while JournalDatabase singleton remains open.
+
+Impact:
+stale connections, undefined runtime state, partial restore, potential corruption.
+
+Fix:
+Stop raw DB replacement. Restore logical DTOs using one Room transaction after archive
+validation and pre-copy new media to unique non-overwriting paths.
+
+F-004 P0 — RESTORE SUCCESS BEFORE INTEGRITY VERIFICATION
+Current:
+after extraction completes, UI says “Backup restored successfully! Please restart the app.”
+
+Missing:
+- SQLite integrity check
+- manifest/version validation
+- expected row count validation
+- media checksum validation
+- schema compatibility validation
+- rollback
+
+F-005 P0 — BACKUP IS A LIVE SQLITE FILE COPY
+File: JournalViewModel.kt
+Function: exportBackup()
+
+Current:
+copies journal_database + matching sidecar files while Room is running.
+
+Fix:
+logical Room snapshot in a transaction -> versioned JSON manifest -> immutable files.
+
+F-006 P1 — DEFAULT JOURNAL MISSING ON FRESH CURRENT-SCHEMA INSTALL
+File: data/JournalDatabase.kt
+
+The "default" Journal row is inserted only in MIGRATION_3_4.
+Room fresh creation of schema version 4 does not run MIGRATION_3_4.
+JournalViewModel nevertheless starts with activeJournalId="default".
+
+Because no foreign key exists, entries can reference a journal row that does not exist.
+
+Fix:
+new schema version + onCreate/onOpen INSERT OR IGNORE default journal.
+
+F-007 P1 — CROSS-JOURNAL DATE QUERY
+File: JournalViewModel.kt
+Function: setSelectedDate()
+
+Calls repository.getEntryByDate(date) with default journal instead of active journal.
+
+F-008 P1 — CROSS-JOURNAL SEARCH
+File: JournalViewModel.kt
+Function: search()
+
+Calls repository.searchEntries(query) with default journal.
+
+F-009 P1 — SEARCH FLOW COLLECTOR ACCUMULATION
+Every keystroke launches a new perpetual collect job.
+
+Impact:
+stale results can overwrite fresh results; Room observers accumulate.
+
+F-010 P1 — SELECTED-DATE COLLECTOR ACCUMULATION
+Each setSelectedDate launches another perpetual collector with no cancellation.
+
+F-011 P1 — MIDNIGHT DATE STALENESS
+_selectedDate and current “today” observation are created from LocalDate.now() once.
+No day boundary refresh exists.
+
+Impact:
+if app remains alive over midnight, a “Today” save can overwrite the previous calendar day.
+
+F-012 P1 — STREAK FREEZE SIDE EFFECT ON READ
+JournalRepository.calculateStreak calls onFreezesConsumed().
+JournalViewModel invokes it whenever entries Flow emits.
+
+A derived metric read must not mutate inventory.
+
+F-013 P1 — STREAK MATH ADDS MISSED DAYS
+The implementation runs `streak += missedDays`, contradicting its own comment.
+
+F-014 P1 — AUDIO COLLISION ACROSS JOURNALS
+File: AudioAttachment.kt
+audio_<date>.m4a is global for the app.
+Journal A and B on the same date address the same voice file.
+
+F-015 P1 — AUDIO NOT OWNED BY JOURNALENTRY
+No audio path/URI exists in JournalEntry.
+Delete, backup, journal switching, restore and ownership cannot be modeled safely.
+
+F-016 P1 — RECORDER LEAK ON START FAILURE
+File: AudioRecorderHelper.kt
+prepare()/start() catch does not release the recorder or reset the field.
+
+F-017 P1 — AUDIO UI REPORTS RECORDING BEFORE START SUCCESS
+AudioAttachment sets isRecording=true before recorder.startRecording() and helper returns Unit.
+
+F-018 P1 — AUDIO UI REPORTS FILE EXISTS AFTER FAILED STOP
+Stop click always sets fileExists=true and invokes onAudioSaved().
+
+F-019 P1 — saveMediaToInternal FALSE SUCCESS
+If contentResolver.openInputStream() returns null, no bytes are written but the function
+still returns file.absolutePath.
+
+F-020 P1 — MEDIA FILE TYPE LIE
+Raw PNG/WEBP/HEIC bytes are copied to files ending .jpg.
+Any video MIME is copied to a file ending .mp4 without transcoding.
+
+F-021 P1 — TIMESTAMP MEDIA NAME COLLISION
+System.currentTimeMillis() is not a uniqueness guarantee when multiple selected files are
+copied in a tight loop.
+
+F-022 P1 — DELETE DOES NOT DELETE OWNED PRIVATE FILES
+deleteEntry()/deleteEntryByDate remove Room rows only.
+
+Impact:
+photos/videos/audio can remain indefinitely after “permanent” deletion.
+
+F-023 P1 — REMOVING MEDIA LEAVES ORPHAN FILE
+Timeline editor filters URI from list; no managed-file cleanup occurs.
+
+F-024 P1 — WIDGET LEAKS LOCKED DIARY TEXT
+JournalWidget displays actual entry content regardless of App Lock.
+
+F-025 P1 — WIDGET READS DEFAULT JOURNAL ONLY
+DAO call omits journalId.
+
+F-026 P1 — WIDGET ASYNC LIFETIME BUG
+AppWidgetProvider starts a standalone CoroutineScope without goAsync().
+Process may be reclaimed before update finishes.
+
+F-027 P1 — ADS INITIALIZE BEFORE CONSENT
+OneLineApp.onCreate:
+MobileAds.initialize()
+InterstitialAdManager.loadAd()
+RewardedAdManager.loadAd()
+
+There is no UMP implementation.
+
+F-028 P1 — BANNER/NATIVE/FULLSCREEN ADS HAVE NO CONSENT GATE
+No AdsConsentManager/canRequestAds state exists.
+
+F-029 P1 — UNSUPPORTED BILLING LIBRARY
+billing-ktx:6.1.0 is outside Play's supported submission window.
+
+F-030 P1 — ANY PURCHASE CAN GRANT PREMIUM
+BillingManager sets premium for any PURCHASED INAPP/SUBS item.
+
+F-031 P1 — BILLING CLIENT RECREATION/CONNECTION LIFECYCLE
+BillingManager.init() is called in MainActivity.onCreate.
+A new singleton BillingClient can be assigned on activity recreation without ending the
+previous connection.
+
+F-032 P1 — PREMIUM PRICE IS FALSE/UNLOCALIZED
+PremiumDialog hardcodes $1.99 and $9.99 instead of ProductDetails formatted price.
+
+F-033 P1 — “REMOVE ALL ADS FOREVER” CONTRADICTS MONTHLY PLAN
+PremiumDialog copy is logically false for a monthly subscription.
+
+F-034 P2 — DRAFT LOSS ON ACTIVITY RECREATION
+Home draft uses plain remember for text/mood/photo/edit state.
+Rotation/recreation can discard unsaved writing.
+
+F-035 P2 — REMINDER PENDINGINTENT CAN CLEAR UNSAVED TASK
+ReminderManager launches MainActivity with NEW_TASK | CLEAR_TASK.
+Tapping the notification while a draft exists can recreate the task and lose remember-only state.
+
+F-036 P2 — DATE PICKER UTC CONVERSION
+Timeline converts selectedDateMillis through systemDefault().
+In negative UTC offsets the chosen calendar date can become previous local date.
+
+F-037 P2 — DUPLICATE PIN ACTION
+EntryDetailScreen renders the Pin/Unpin IconButton twice.
+
+F-038 P2 — DELETE COPY IS FALSE
+Dialog says “cannot be undone” while shake undo exists.
+It says “permanently deleted” while private attachments are not removed.
+
+F-039 P2 — STATS “DAYS LEFT” IS WRONG
+StatsScreen uses 7 - thisWeekEntries, not calendar days remaining.
+
+F-040 P2 — PREMIUM THEME IS NOT GATED
+Settings displays “App Theme (Premium)” but every theme is directly clickable.
+
+F-041 P2 — VERSION UI IS STALE
+build = 4.3; strings contain Version 1.0 and settings_version_number 4.1.
+
+F-042 P2 — GALLERY ROUTE IS DEAD
+Screen.Gallery exists but is not in bottom navigation and has no NavHost destination/screen.
+
+F-043 P2 — HEATMAP FEATURE IS NOT REACHABLE
+CalendarHeatmap.kt exists but StatsScreen never calls it.
+
+F-044 P2 — MOOD TREND FEATURE IS NOT REACHABLE
+MoodTrendChart.kt exists but StatsScreen never calls it.
+
+F-045 P2 — TAG CREATION IS NOT IN PRIMARY FLOW
+TagInput exists; Home and Timeline Edit do not wire it.
+
+F-046 P2 — TIMELINE MOOD ROW OVERFLOWS
+10 moods are placed in one normal Row.
+
+F-047 P2 — SHARE IMAGE WORK ON MAIN THREAD
+EntryDetail directly generates 1080x1920 ARGB bitmap and PNG compression.
+
+F-048 P2 — UNIX GRADLE WRAPPER IS MALFORMED
+gradlew uses $APP_HOME before assigning APP_HOME.
+
+F-049 P2 — MACHINE-SPECIFIC JDK PATH IN VCS
+gradle.properties hardcodes Windows Android Studio JBR.
+
+F-050 P2 — PDF UNICODE FAILURE
+Standard Helvetica fonts cannot represent the app’s claimed Hindi/Bengali/Urdu/Arabic/CJK
+and many emoji.
+
+F-051 P2 — PDF CONTENT IS INCOMPLETE
+PDF handles legacy photoUri only; additional mediaUris, tags and audio are omitted.
+
+F-052 P2 — RUNTIME FONT NETWORK/AVAILABILITY DEPENDENCE
+Type.kt uses downloadable Google Fonts through Google Play Services.
+
+F-053 P2 — ARABIC RESOURCE QUALITY FAILURES
+Observed PLACEHOLDER0, English leftovers, wrong semantic translations, stale privacy text.
+
+F-054 P2 — SMALL INTERACTIVE TARGETS
+Examples:
+EntryCard pin = 16dp
+MediaGallery remove = 28dp
+PhotoAttachment remove = 32dp
+AudioPlayerView button = 36dp
+PremiumDialog close = 32dp
+Tag remove icon = 16dp
+
+F-055 P2 — VISUAL CHARTS HAVE NO ACCESSIBLE DATA EQUIVALENT
+CalendarHeatmap and MoodTrend Canvas/boxes lack TalkBack data semantics.
+
+F-056 P2 — LIGHT THEME CONTRAST
+SunsetOrange #FF8C42 with white is approximately 2.2:1.
+AccentTeal #4ECDC4 on near-white is approximately 1.9:1.
+
+F-057 P2 — NATIVE AD CARD DARK-MODE MISMATCH
+ad_native_timeline.xml uses fixed white background/dark text via widget background.
+
+F-058 P2 — SETTINGS IS A GOD COMPOSABLE
+One ~46 KB file owns unrelated platform/business flows.
+
+F-059 P3 — AudioPlayer currentPosition is dead state
+It is never updated.
+
+F-060 P3 — README IS STALE/WRONG
+Examples:
+- claims 100% local
+- old package path
+- SDK 34
+- claims READ_MEDIA_IMAGES + SCHEDULE_EXACT_ALARM although manifest does not request them
+- omits actual Internet/Billing/Microphone behavior.
+
+F-061 P3 — ROOT REPOSITORY CLUTTER
+Unrelated competitor review, commit fabrication helper, temporary output files and one-off
+local translation/fix scripts are tracked.
+
+
+## G. Runtime Risks
+==================
+
+These need device/emulator or generated-build verification:
+
+G-001 ❓ Room migrations 1→2→3→4 have no MigrationTestHelper tests.
+The SQL appears internally coherent, but actual historical DB fixtures were not executed.
+
+G-002 ❓ Android 16 edge-to-edge on gesture and 3-button navigation.
+MainActivity calls enableEdgeToEdge(), but every screen must be visually tested around
+status/navigation bars, keyboard, landscape, tablets and cutouts.
+
+G-003 ❓ Predictive back animation behavior.
+Navigation 2.7.6 is much older than current 2.10.0. Basic system back should still route
+through Navigation, but Android 16 predictive animations need physical/runtime testing.
+
+G-004 ❓ Downloadable fonts offline.
+Google Play Services may serve cached/provider fonts; fallback/layout behavior on devices
+without provider/network must be tested.
+
+G-005 ❓ Media decoding:
+HEIC, malformed files, unsupported video codecs, huge images, and large video frame extraction.
+
+G-006 ❓ Billing product configuration:
+product IDs, base plan, offers and Play Console activation cannot be proven from source.
+
+G-007 ❓ AdMob console:
+CMP message publication, app linkage, target audience/age treatment and mediation configuration
+are external console state.
+
+G-008 ❓ Notification delivery timing across OEM battery savers/Doze.
+The static scheduling design is weak for timezone changes, but real delay magnitude varies.
+
+G-009 ❓ Widget host refresh cadence.
+Launcher implementations can differ.
+
+G-010 ❓ R8 release behavior.
+No release build was possible.
+
+G-011 ❓ APK/AAB size.
+No artifact was produced.
+
+G-012 ❓ 1k/5k/10k entry scrolling benchmark.
+Static design suggests reasonable Room volume, but Compose/ads/media must be benchmarked.
+
+G-013 ❓ memory pressure during PDF of many high-resolution photos.
+
+G-014 ❓ Arabic/Urdu/Japanese/Korean/Chinese typography at 200% font scale.
+
+
+## H. Journal Data Integrity
+============================
+
+INVARIANT: ONE ENTRY PER DATE PER JOURNAL
+GOOD:
+JournalEntry uses composite primary key (date, journalId).
+
+CONCERN:
+The key order is date first, while most queries filter journalId. Add an explicit journalId
+index rather than changing primary-key order and risking migration complexity.
+
+CREATE
+- uses getEntryByDateOnce(date, journalId) then writes.
+- multiple rapid saves do not create duplicates due primary key.
+- however UI has no isSaving guard and multiple coroutines can race/redundantly replace data.
+
+EDIT
+- historical edit preserves tags because updateEntry.copy() does not overwrite tags.
+- Home edit does overwrite tags/media with empty defaults: confirmed data loss.
+
+DELETE
+- DB row is deleted.
+- attachment files remain.
+- lastDeletedEntry is in ViewModel RAM only.
+- a second delete replaces the previous undo candidate.
+- process death removes undo possibility.
+
+MOVE BETWEEN JOURNALS
+- no real UI.
+- no explicit transaction to change composite key.
+- if implemented later, changing journalId changes primary key and can conflict with an
+  existing same-date target entry. Must require merge/cancel choice.
+
+JOURNAL DELETE
+- DAO exposes deleteJournal without foreign key.
+- entries can be orphaned logically.
+- no current UI protects default journal or non-empty journal.
+
+SAME DATE IN TWO JOURNALS
+Database allows it correctly.
+Audio does not: both resolve audio_<same-date>.m4a.
+
+PROCESS DEATH DURING SAVE
+Room’s single SQL write is transactional, which is good.
+Unsaved Compose draft is not durable.
+
+RAPID SAVE
+No duplicate rows, but no UI mutex/disable and multiple ad counters/messages can occur.
+
+RECOMMENDATION
+- schema v5 foreign key + index + audioUri
+- explicit isSaving
+- saved draft
+- pure update path preserving all fields
+- soft/visible undo before permanent file cleanup
+
+
+## I. Room / Migration Audit
+============================
+
+CURRENT DATABASE VERSION: 4
+exportSchema = false
+
+MIGRATION 1→2
+Adds mediaUris TEXT NOT NULL DEFAULT '[]'.
+
+MIGRATION 2→3
+Adds isPinned INTEGER NOT NULL DEFAULT 0.
+
+MIGRATION 3→4
+Creates journals.
+Inserts default journal.
+Recreates journal_entries with:
+- composite date,journalId PK
+- mediaUris
+- tags
+- isPinned
+- timestamps
+
+CONFIRMED FRESH-INSTALL GAP
+A new v4 database does not run 3→4, so default journal is not seeded.
+
+MISSING FOREIGN KEY
+journal_entries.journalId is not constrained to journals.id.
+
+MISSING INDEX
+No explicit index on journalId.
+
+TYPE CONVERTER RISKS
+Mood.valueOf(value):
+renaming/removing an enum constant will make historical rows unreadable.
+Treat persisted enum names as a stable data contract.
+
+List converters use org.json and are simple. Keep them unless backup format standardization
+warrants a dedicated serializer.
+
+DO NOT USE fallbackToDestructiveMigration().
+
+TARGET V5
+- add nullable audioUri
+- add FK journalId -> journals.id ON DELETE RESTRICT
+- add index(journalId)
+- ensure every orphan journalId gets a recovered Journal row before FK creation
+- seed default on create/open
+- export Room schemas
+- add migration test 4→5 and historical 1→5 tests
+
+
+## J. Backup Audit
+==================
+
+CURRENT STATUS: ❌ NOT TRUSTWORTHY.
+
+Archive contents:
+db/journal_database*
+media/photo_*.jpg
+media/video_*.mp4
+audio/audio_*.m4a
+
+Problems:
+1. raw live DB files
+2. WAL/SHM snapshot timing
+3. no version manifest
+4. no checksum
+5. extension-based media discovery misses future/other types
+6. no attachment ownership metadata
+7. no free-space preflight
+8. synchronous export from Settings click
+9. no validation before success
+10. cache backup lifetime unmanaged
+
+RECOMMENDED FORMAT v1
+
+manifest.json
+files/<uuid>.<safe-extension>
+
+manifest:
+- formatVersion
+- appId
+- databaseSchemaVersion
+- createdAtEpochMs
+- journals[]
+- entries[]
+- file descriptors with SHA-256 + size
+- primary photo file ID
+- media file IDs
+- audio file ID
+
+Never store the original absolute device path as authoritative backup state.
+
+SNAPSHOT
+Use database.withTransaction to read all journals + entries logically.
+
+ATTACHMENTS
+Resolve each referenced managed file and place immutable copies in archive.
+If a referenced attachment is missing, do not silently call the backup complete.
+Return a clear incomplete-backup error or explicit warning the user must acknowledge.
+
+PLAINTEXT
+Current ZIP is compressed only, not encrypted.
+Call it “backup ZIP”, never “encrypted backup”.
+
+
+## K. Restore & Archive Security
+================================
+
+CURRENT STATUS: ❌ P0.
+
+REQUIRED PIPELINE:
+
+1. Copy selected archive to private cache with compressed byte limit.
+2. Open ZipFile.
+3. Validate every entry name.
+4. Reject:
+   - absolute paths
+   - `..`
+   - backslash traversal
+   - duplicate names
+   - unknown top-level files
+5. Enforce configurable:
+   - compressed archive max
+   - entry count max
+   - individual uncompressed max
+   - total uncompressed max
+6. Require manifest.json for new format.
+7. Validate appId and formatVersion.
+8. Validate unique (date,journalId) keys.
+9. Validate every entry’s journal exists.
+10. Validate LocalDate and Mood values.
+11. Verify SHA-256 and byte size for every attachment.
+12. Copy restored media to NEW unique files; never overwrite current files.
+13. Run one Room transaction:
+    - delete current rows
+    - insert restored journals
+    - insert restored entries
+    - verify expected counts/keys
+14. Commit.
+15. Only after commit:
+    - update active journal
+    - refresh UI
+    - asynchronously clean unreferenced old managed files.
+16. On any pre-commit failure:
+    original DB and original files remain untouched.
+
+CRASH SAFETY
+Because restored files are new unique files and the only destructive logical change occurs
+inside one SQLite transaction:
+- crash before transaction -> original diary intact
+- crash during transaction -> SQLite commit/rollback semantics
+- commit -> DB references already-existing restored files
+- cleanup failure -> orphan storage only, not diary loss
+
+LEGACY BACKUP COMPATIBILITY
+Do not simply drop the old raw-DB backup format.
+Add a read-only LegacyBackupImporter:
+- stage archive safely
+- open staged DB, never production DB
+- run PRAGMA integrity_check
+- detect schema columns
+- convert rows to logical DTOs
+- map legacy media by basename
+- import through the same new logical restore transaction.
+If the legacy DB is inconsistent/corrupt, reject it while leaving current diary untouched.
+
+
+## L. Media / Audio Audit
+=========================
+
+PHOTO PICKING
+PhotoAttachment uses GetContent.
+This is scoped and does not require broad storage permission.
+Keep scoped picker behavior; optionally migrate to PickVisualMedia for consistency.
+
+MULTI MEDIA
+MediaGallery uses PickMultipleVisualMedia(ImageAndVideo), which is good.
+
+STORAGE
+Selected files are copied into private filesDir.
+Good intent, weak implementation.
+
+MIME
+Do not infer persistent content type only from source MIME or destination extension.
+Copy exact bytes and record:
+- detected/declared MIME
+- sanitized extension derived from resolver/display name/MIME
+- unique storage ID.
+
+THUMBNAILS
+Coil video decoder is configured globally.
+Request bounded thumbnail sizes for timeline/media cards rather than decoding unnecessarily
+large resources.
+
+DELETION
+Introduce reference-aware MediaStorageManager.
+Never delete a file if another entry references it.
+
+AUDIO
+Move audio ownership into JournalEntry.audioUri.
+New files should be unique, e.g.
+filesDir/journal_media/audio/<uuid>.m4a
+
+Legacy fallback:
+If audioUri == null, still check legacy audio_<date>.m4a so existing recordings are not lost.
+Do not delete a legacy file while any existing entry for that date can still resolve it.
+
+RECORDING
+startRecording must return success/failure.
+On any exception:
+- release MediaRecorder
+- delete zero/partial output
+- reset state.
+stopRecording must return validated File? only if non-zero and stop succeeded.
+
+
+## M. App Lock & Privacy
+=======================
+
+CORE APP LOCK: KEEP.
+
+AppLockManager:
+- one authenticator policy
+- biometrics + device credential
+- no app-managed PIN
+- canAuthenticate check
+- proper prompt
+- enable/disable should happen only after auth
+
+MainActivity:
+- starts locked if enabled
+- relocks at ON_STOP
+
+UX CONCERN
+Current timeout = effectively immediate background lock.
+This is secure but annoying for task switching, picker/share flows and rotation.
+Recommended setting:
+- Immediately
+- After 30 seconds (good default)
+- After 1 minute
+- After 5 minutes
+
+Do not persist “unlocked” across process death.
+
+RECENTS
+App Lock does not prevent launcher task snapshots.
+Recommended:
+when App Lock is enabled, call Activity.setRecentsScreenshotEnabled(false) on API levels
+that support it. This protects Recents without globally disabling user screenshots.
+
+Optional stronger setting:
+“Block screenshots and screen sharing while App Lock is enabled”
+-> FLAG_SECURE.
+Make it user-controlled because FLAG_SECURE also blocks legitimate screenshots/casting.
+
+DATABASE/MEDIA
+App Lock is not encryption.
+Room and private files rely on Android sandbox/device storage encryption.
+
+BACKUP
+Portable backup is a separate privacy boundary.
+
+
+## N. Reminder & Widget Audit
+=============================
+
+REMINDERS
+Good:
+- no exact-alarm permission
+- generic copy
+- runtime notification permission
+- reboot reschedule
+
+Problems:
+- setRepeating INTERVAL_DAY models elapsed 24h, not resilient local wall-clock schedule.
+- timezone/DST changes not handled.
+- hardcoded English.
+- PendingIntent CLEAR_TASK can destroy current unsaved UI state.
+- “Keep your streak alive” is more pressure-oriented than the desired calm product.
+
+Recommended:
+one-shot next-local-time alarm using setAndAllowWhileIdle/setWindow as appropriate,
+then schedule tomorrow after receive.
+Handle:
+BOOT_COMPLETED
+TIMEZONE_CHANGED
+TIME_SET
+MY_PACKAGE_REPLACED
+without exact alarm permission unless product requirement changes.
+
+WIDGET
+High privacy issue.
+Default behavior when App Lock is ON:
+show generic “Ready to write today’s line?” and no mood/content.
+
+Add setting:
+Widget preview:
+- Private prompt (default)
+- Show today’s line
+
+If user explicitly selects “Show today’s line”, explain launcher widgets are visible without
+unlocking the app.
+
+Use goAsync() in AppWidgetProvider.
+Read active_journal_id.
+Use localized resources.
+
+
+## O. Streak / Date / Statistics Audit
+======================================
+
+CURRENT STREAK
+Broken when freezes are involved.
+
+LONGEST STREAK
+Pure chronological calculation appears structurally reasonable for daily dates.
+No timezone timestamp conversion is involved because entry date is LocalDate.
+
+FREEZES
+Redesign:
+- calculation is pure
+- inventory is not consumed by calculation
+- if freeze feature remains, explicit freeze usages must be stored by date
+- consuming a freeze is one transactional action
+
+Recommended model:
+StreakFreezeUsage(
+  journalId,
+  missedDate,
+  createdAt
+)
+with unique(journalId, missedDate).
+
+Then:
+calculateCurrentStreak(entries, freezeUsageDates, today)
+is a pure function.
+
+Do NOT allow “claim free freeze” button to become manipulative ad currency.
+
+DATE SEMANTICS
+Journal date should remain a user-visible LocalDate.
+Timestamps should only represent created/updated instants.
+
+TIMEZONE TRAVEL
+Do not rewrite existing entry LocalDates after timezone changes.
+
+MIDNIGHT
+refresh today date on:
+- ON_RESUME
+- foreground day-boundary timer.
+
+STATS
+Replace “X days left” with either:
+- “X of 7 days journaled”, or
+- actual calendar days until end of local week.
+
+
+## P. Ads Audit
+===============
+
+CURRENT:
+- banner on Home/Timeline/Stats/Settings
+- native every 2 timeline entries
+- interstitial every 3 save/edit events
+- rewarded before free-user PDF
+- process-start SDK init/preload
+
+TECHNICAL:
+- no UMP
+- no consent revocation UI
+- no canRequestAds gate
+- old GMA 23.6.0
+- Banner AdView not explicitly destroy()ed
+- Native ad spinner/layout shift
+- rewarded preloaded before PremiumManager is initialized in Activity
+
+PRIVACY:
+Current AdMob SDK traffic means “app collects no data” is false even when journal content
+does not leave the device.
+
+PRODUCT:
+Remove:
+- native ads inserted between private memories
+- interstitial immediately after journal save/edit.
+
+Recommended free monetization:
+A. no ads in writing/history content
+B. optional unobtrusive ad only in non-sensitive surfaces, or rewarded optional cosmetic feature
+C. Lifetime Pro
+D. basic data export remains free
+E. styled PDF/themes/advanced visual stats can be Pro
+
+Consent:
+Integrate UMP 4.0.0.
+Call requestConsentInfoUpdate each app launch.
+Use loadAndShowConsentFormIfRequired.
+Gate every ad request with consentInformation.canRequestAds().
+If privacyOptionsRequirementStatus is REQUIRED, Settings must expose “Privacy choices”.
+
+
+## Q. Billing / Premium Audit
+=============================
+
+CURRENT LIBRARY: 6.1.0 — NOT SUPPORTED FOR NEW SUBMISSIONS/UPDATES.
+
+Upgrade target: Play Billing 9.1.0.
+
+CONFIRMED ENTITLEMENT BUG
+Any PURCHASED SUBS/INAPP item can unlock premium.
+
+REQUIRED VALIDATION
+Recognized product set:
+premium_monthly
+premium_lifetime
+
+Only a purchase whose purchase.products intersects recognized set may grant entitlement.
+
+PENDING
+Must not grant while PENDING.
+
+ACKNOWLEDGEMENT
+A purchased recognized non-consumable/subscription should be acknowledged when required.
+
+PRICE UI
+Never hardcode USD.
+Use ProductDetails:
+- lifetime oneTimePurchaseOfferDetails.formattedPrice
+- monthly eligible subscription offer pricing phases.
+
+SUBSCRIPTION STATE
+Local queryPurchasesAsync is sufficient for a small offline-first indie app if fraud risk is
+acceptable, but it has limitations:
+- no real-time server notifications
+- revoked/refunded status becomes visible when Play client updates/query succeeds
+- stale offline entitlement policy needs definition.
+
+Recommended local policy:
+- lifetime: cached after recognized Play purchase
+- monthly: retain last verified entitlement offline for a bounded grace window (e.g. 3 days)
+  rather than forever
+- refresh on app foreground and restore purchases.
+
+Do not add a backend unless revenue/fraud risk justifies operational complexity.
+
+PREMIUM FEATURES
+Core writing/search/read/delete/basic export/privacy controls must remain accessible.
+Good Pro candidates:
+- themes
+- advanced visual reports
+- styled PDF
+- richer media quantity
+- cosmetic customization.
+
+Basic machine-readable data export/restore should not be held hostage.
+
+
+## R. PDF / Export Audit
+=======================
+
+GOOD:
+generation is withContext(Dispatchers.IO).
+
+BROKEN/INCOMPLETE:
+- StandardFonts.HELVETICA cannot cover advertised languages/emoji.
+- additional mediaUris omitted.
+- tags omitted.
+- voice notes omitted.
+- high-res image embedding not bounded.
+- fixed cache filename races concurrent exports.
+- no pre-share privacy warning.
+- iText AGPL/commercial licensing must be resolved.
+
+Preferred technical direction:
+For a simple diary PDF, replace iText with Android PdfDocument or another license-compatible
+library and explicitly bundle/use fonts that cover intended scripts.
+
+If iText remains:
+- comply with AGPL or obtain commercial license
+- add proper Unicode font support
+- verify CJK/Arabic shaping requirements
+- include all content fields intentionally.
+
+Separate exports:
+1. Free portable JSON/text backup/export — user ownership.
+2. Styled PDF — can be premium.
+
+
+## S. UI/UX Audit
+================
+
+HOME
+Current:
+premium CTA + throwback + quick stats + large decorated editor + mood + photo + audio + banner.
+
+Problem:
+Core promise is 10-second journaling but the screen behaves like a dashboard.
+
+Recommended hierarchy:
+1. date + tiny streak indicator
+2. one prominent text field
+3. Save
+4. optional mood
+5. collapsed “Add memory details” -> photo/video/audio/tags
+6. On This Day below
+7. no interstitial after Save
+
+Draft must survive rotation/task switching.
+
+TIMELINE
+Problems:
+- native ad every two personal memories
+- filter controls crowded
+- search job bug
+- date timezone bug
+- mood row overflow
+- no tag editing
+- media remove does not delete owned file
+- hardcoded strings
+
+Recommended:
+personal memories uninterrupted.
+Filters in one modal/bottom sheet.
+Sticky search only when used.
+
+ENTRY DETAIL
+Problems:
+duplicate Pin
+hardcoded English
+main-thread share
+delete copy inconsistent
+heavy animated gradient text
+
+Recommended:
+quiet typography, one Pin, Share/Edit/Delete overflow if necessary.
+
+JOURNEY
+Problems:
+“days left” false.
+heatmap/trend components are not wired.
+cards and animation are decorative-heavy.
+
+Recommended:
+- current streak (non-judgmental)
+- calendar consistency view
+- mood trend with accessible text summary
+- milestones lower priority.
+
+SETTINGS
+Problems:
+large monolithic file
+Premium theme not gated
+version stale
+backup flow unsafe
+“Save Backup to Google Drive” is a generic share chooser
+no privacy choices UMP entry.
+
+LOCK
+Core behavior good.
+Localize all strings.
+Add lock timeout preference.
+
+PREMIUM
+Hardcoded prices and emotionally mismatched “forever” copy.
+Do not make private writing experience feel ad-removal-first.
+
+
+## T. Accessibility / Localization
+==================================
+
+ACCESSIBILITY PRIORITIES
+
+1. minimum 48dp interactive targets
+2. semantic selected state on moods
+3. readable labels for mood emojis
+4. charts/heatmap textual equivalent
+5. accessible contrast
+6. test 100/130/150/200% font scale
+7. dynamic layouts, no fixed ten-item Row
+8. logical TalkBack order
+9. localize contentDescriptions
+10. avoid information only encoded by mood color
+
+COLOR
+Change light theme primary used with white to a darker orange, e.g. approximately #A94300
+or select an audited Material color where onPrimary meets >=4.5:1 for normal text.
+Use dark teal for text; keep bright teal only as decorative fill if desired.
+
+LOCALIZATION
+The language selector is not proof of quality.
+Observed Arabic defects alone mean the app should not advertise full polished 15-language
+support yet.
+
+Required:
+- move all hardcoded user-visible Kotlin/XML strings to resources
+- human/native QA for each locale
+- locale-aware plural resources
+- RTL screenshots/tests
+- verify line wrapping at 200%
+- verify PDF script support.
+
+Arabic and Urdu:
+use AutoMirrored icons for directional navigation.
+EntryDetail currently uses non-auto-mirrored ArrowBack.
+
+
+## U. Performance
+=================
+
+STARTUP
+Current startup does:
+- Application MobileAds.initialize
+- interstitial preload
+- rewarded preload
+Then MainActivity:
+- PremiumManager init
+- BillingManager init/connect
+- App Lock
+- Compose
+
+Priority should be first journal frame / lock prompt.
+Move ads behind consent and after first usable UI.
+Billing can connect after activity foreground without blocking UI.
+
+MAIN-THREAD I/O
+Confirmed:
+- backup export from Settings
+- media file copy
+- entry-share bitmap generation/compression
+
+Move all to Dispatchers.IO/Default with visible progress.
+
+TIMELINE
+Native ad instances every 2 items cause network/load/destroy churn.
+Remove them from the private timeline.
+
+IMAGES
+Set Coil request size for thumbnails.
+Avoid decoding full images for 100dp cards.
+
+PDF
+Bound image decode dimensions.
+
+ANIMATIONS
+Infinite gradient editor/detail text and rotating streak flame run continuously.
+For a calm journal, remove/reduce and respect reduced-motion preference where practical.
+
+10 YEARS
+~3,650 daily entries is not large for SQLite.
+The current query shape is acceptable after journalId indexing.
+10,000 entries should still be fine with:
+- indexed journal scope
+- LazyColumn
+- bounded thumbnails
+- no ad per two rows
+- debounced search.
+
+
+## V. Security
+===============
+
+P0
+- ZIP traversal
+- unsafe restore
+- no rollback
+
+P1
+- File ownership lifecycle leaves sensitive orphan files
+- widget bypasses App Lock expectations
+- ads before consent
+
+P2
+- FileProvider roots overly broad
+- Recents screenshots
+- plaintext backup sharing needs explicit warning
+
+EXPORTED COMPONENTS
+MainActivity exported=true: required launcher.
+FileProvider=false: good.
+ReminderReceiver=false: good.
+BootReceiver=true with BOOT_COMPLETED: appropriate for system broadcast.
+JournalWidget=true: required widget host interaction.
+
+INTENTS
+Media ACTION_VIEW receives one-time read grant.
+Share intents receive read grant.
+
+PENDINGINTENT
+Widget uses immutable.
+Reminder uses immutable/update current.
+Good baseline.
+
+SECRETS
+AdMob IDs are identifiers, not secrets.
+No API keys/passwords observed.
+
+DATABASE ENCRYPTION
+No SQLCipher/app-level encryption.
+Do not call Room “encrypted”.
+
+BACKUPS
+ZIP compression is NOT encryption.
+
+OPTIONAL ENCRYPTED PORTABLE BACKUP
+Worth adding only after reliable plaintext logical restore exists.
+Do not design custom cryptography casually.
+A portable password-based format needs an audited library/standard, strong KDF + authenticated
+encryption and recovery UX. It is not a Phase-0 substitute for correct restore.
+
+
+## W. Privacy Data Flow
+======================
+
+| Data | Stored Where | Leaves Device? | Recipient | User Control | Delete Method |
+|---|---|---|---|---|---|
+| Journal text | Room DB | not intentionally by app | none; OS backup may copy | edit/delete/export | DB delete |
+| Dates | Room | same | same | entry actions | DB delete |
+| Mood | Room | same | same | edit/delete | DB delete |
+| Tags | Room JSON text | same | same | currently weak UI | DB delete |
+| Journals | Room | same | same | no complete UI | DAO |
+| Photos/videos | filesDir + paths in Room | explicit share/export; system current rules exclude files | chosen share app | attach/remove | currently references only |
+| Voice notes | filesDir | explicit backup/share indirectly | chosen destination | record/delete | direct file delete |
+| Streak freezes | SharedPreferences | Android backup eligible | Android/Google backup depending device | claim only | app data/settings |
+| Theme/language/reminders | SharedPreferences/system locale | Android backup eligible | Android backup | Settings | app data |
+| App Lock enabled flag | SharedPreferences | Android backup eligible | Android backup | Settings | toggle/app data |
+| Ad identifiers | SDK/device | yes | Google/ad partners | OS ad controls/CMP | provider controls |
+| IP/general location estimate | network | yes | Google Ads | consent/provider | provider |
+| Ad interaction/diagnostics | SDK | yes | Google Ads | consent/provider | provider |
+| Billing purchase data | Play Billing | yes | Google Play | Play account | Play controls |
+| Backup ZIP | cache then user share | only when user chooses | destination app/service | explicit export | cache cleanup/user destination |
+| PDF | cache then user share | only when user chooses | destination app/service | explicit export | cache overwrite/cleanup |
+
+Important:
+Journal content locality and application network activity are different facts.
+Accurate wording:
+“Your journal content is stored on your device and is not intentionally sent to our servers
+or advertising SDKs. Ads and Google Play purchases use network services. Content leaves the
+app when you choose to export/share it, and eligible Android system backup may transfer app
+data according to your device/account settings.”
+
+
+## X. Dependency Audit
+======================
+
+CURRENT -> RECOMMENDATION
+
+androidx.core:core-ktx 1.12.0
+⚠️ Upgrade review.
+Current stable is much newer (1.19.0 in Sep 2026).
+Upgrade together with Activity/Lifecycle/Compose after tests.
+
+lifecycle-runtime-ktx 2.7.0
+lifecycle-viewmodel-compose 2.7.0
+⚠️ Upgrade together; current stable line is 2.11.0.
+
+activity-compose 1.8.2
+⚠️ Upgrade; current stable 1.13.0.
+Important because newer Activity contains modern platform/navigation fixes.
+
+Compose BOM 2024.06.00
+⚠️ Very old.
+Current stable BOM is 2026.08.00.
+Do not upgrade blindly in the same commit as data migrations. Make an isolated UI/toolkit
+upgrade and run screenshot/accessibility/regression tests.
+
+navigation-compose 2.7.6
+⚠️ Upgrade review to 2.10.0 for current predictive-back/navigation fixes.
+
+biometric 1.1.0
+✅ Stable current version remains 1.1.0; keep unless a specific alpha feature is required.
+
+Room 2.7.1
+⚠️ Upgrade review to stable 2.8.4.
+Do it with schema export + migration tests.
+
+Coil 2.5.0
+⚠️ Major upgrade available (Coil 3.6.2).
+Do not combine with data changes; Coil 3 is a migration.
+Current 2.5 can remain temporarily if stable on API 36.
+
+DataStore 1.0.0
+🗑️ Remove now.
+No source usage was found; settings use SharedPreferences.
+
+iText 7.2.5
+🔐/🔄 Legal and technical review.
+AGPL/commercial obligations; Unicode limitations in current implementation.
+Prefer replacement for this simple use case.
+
+play-services-ads 23.6.0
+⚠️ Upgrade to current legacy GMA 25.4.0 while implementing UMP.
+
+billing-ktx 6.1.0
+❌ Upgrade to 9.1.0.
+
+ui-text-google-fonts 1.6.0
+⚠️ Used.
+Either align with Compose BOM or replace downloadable fonts with bundled/system typography.
+
+Gson 2.10.1
+🟡 Currently no source usage found.
+KEEP if adopting the recommended logical backup manifest; otherwise remove.
+
+core-splashscreen 1.0.1
+⚠️ Upgrade review; current Core splash stable is newer.
+
+accompanist-systemuicontroller 0.32.0
+🗑️ Remove.
+No source usage found and System UI Controller has been deprecated/removed upstream.
+The app already uses enableEdgeToEdge + WindowCompat.
+
+material-icons-extended
+✅ Used heavily; keep, but watch binary/resource size.
+
+R8 keep rules
+⚠️ Too broad.
+After dependency upgrades, remove blanket keeps that SDKs do not require and validate release.
+
+
+## Y. Architecture & Maintainability
+===================================
+
+KEEP THE APP SMALL.
+Do not introduce enterprise layers for their own sake.
+
+Create these focused classes:
+- MediaStorageManager
+- BackupArchiveManager
+- DayProvider/Clock injection
+- AdsConsentManager
+- BillingRepository/Manager with StateFlow
+- ReminderScheduler
+
+Optionally split:
+- SettingsViewModel
+
+Move backup/restore out of JournalViewModel.
+Move direct Toast/Activity business orchestration out of very large SettingsScreen where practical.
+
+Delete dead route and obsolete helper scripts after proving no workflow uses them.
+
+
+## Z. Testing
+==============
+
+CURRENT: effectively zero automated production logic tests.
+
+ADD UNIT TESTS:
+1. streak no entries
+2. streak today
+3. streak yesterday
+4. gap without freeze
+5. gap with explicit persisted freeze usage
+6. repeated calculation is idempotent
+7. leap day
+8. year boundary
+9. active journal isolation
+10. search journal isolation
+11. save preserves media/tags
+12. backup manifest validation
+13. path traversal rejection
+14. duplicate ZIP entry rejection
+15. archive size rejection
+16. checksum mismatch rejection
+17. billing recognized product only
+18. unrelated billing product
+19. pending billing product
+20. monthly expiry cache policy.
+
+ROOM INSTRUMENTATION:
+- create schema 1 fixture -> migrate to latest
+- 2 -> latest
+- 3 -> latest
+- 4 -> 5
+- verify entries/tags/media/pinned/timestamps
+- verify default journal
+- verify recovered orphan journal IDs
+- verify FK restrict.
+
+COMPOSE/UI:
+- Home draft survives recreate
+- Home edit preserves hidden data
+- 200% font
+- RTL
+- mood semantics
+- lock screen
+- Settings privacy choices
+- timeline no duplicate ad/memory semantics.
+
+SYSTEM:
+- notification permission denied
+- boot/timezone change
+- widget locked/unlocked
+- App Lock foreground/background
+- PDF Unicode fixtures.
+
+PERFORMANCE:
+- Macrobenchmark cold start
+- timeline scroll 5k entries
+- PDF 3,650 text entries
+- media thumbnails
+- backup 1 GB synthetic archive.
+
+
+## AA. Android 16 Compatibility
+================================
+
+GOOD:
+- compileSdk 36
+- targetSdk 36
+- enableEdgeToEdge()
+- minSdk 26
+- no exact alarm permission
+- scoped media picker path available
+- modern immutable PendingIntents
+
+REQUIRES TESTING/FIX:
+1. Android 16 enforces edge-to-edge for target 36.
+2. Predictive back is enabled for target 36; Navigation is old.
+3. Large-screen layouts must adapt; Android 16 removes many orientation/aspect restrictions
+   on >=600dp displays.
+4. Current fixed mood rows and two-card stat rows require tablet/font testing.
+5. Notification/Widget/Alarm flows need API 36 device tests.
+6. Activity/core/navigation dependencies are years behind current stable.
+7. Theme manually changes status/nav bar colors; test against enforced edge-to-edge.
+
+
+## AB. Play Store Readiness
+===========================
+
+CODE WORK
+[✅] applicationId stable
+[✅] targetSdk 36
+[✅] minSdk 26
+[✅] FileProvider non-exported
+[✅] privacy policy V2 exists in app
+[❌] supported Billing library
+[❌] UMP/CMP code
+[❌] safe restore
+[❌] safe backup
+[❌] data-loss edit bug
+[❌] widget App Lock privacy
+[❌] test suite
+[❌] release build evidence
+[⚠️] localization quality
+[⚠️] iText licensing
+[⚠️] accessibility
+[⚠️] system backup consistency
+
+PLAY CONSOLE WORK
+[ ] public privacy-policy URL configured
+[ ] Data Safety updated for GMA
+[ ] Ads declaration
+[ ] target audience/age groups
+[ ] content rating
+[ ] app access (likely no restricted access, verify)
+[ ] store listing text matches actual feature state
+[ ] screenshots
+[ ] feature graphic
+[ ] tablet/large-screen screenshots where required/recommended
+[ ] AAB uploaded to internal/closed testing
+[ ] pre-launch report reviewed
+
+ADMOB CONSOLE
+[ ] correct app/ad units
+[ ] European regulations CMP message
+[ ] privacy options/reconsent
+[ ] age-restricted treatment based on actual target audience
+[ ] mediation/vendor review
+[ ] ad serving test IDs in debug builds
+
+BILLING CONFIGURATION
+[ ] premium_monthly exists/active
+[ ] base plan/offer eligibility
+[ ] premium_lifetime exists/active
+[ ] localized pricing
+[ ] test license accounts
+[ ] subscription cancellation/renewal tests
+
+SIGNING
+No release signing config is in source, which is correct if secrets are owner-managed.
+Verify Play App Signing and secure upload key outside Git.
+
+
+## AC. Product / Monetization Review
+====================================
+
+1. STRONGEST DIFFERENTIATOR
+Not “one line per day” by itself — multiple current Play apps use the exact proposition.
+The strongest credible positioning is:
+“the fastest private memory journal: one thought in seconds, then rediscover your life through
+On This Day.”
+
+2. IS ONE LINE STRONG ENOUGH?
+Strong onboarding mechanism, weak standalone moat.
+A direct competitor literally markets “One line a day. That’s the whole app,” and another
+markets a 10-second one-sentence habit.
+
+3. HAS FEATURE GROWTH MADE IT TOO COMPLEX?
+Yes, in implementation and partially in UI.
+Multiple journals + tags + photo/video + audio + streak freezes + achievements + four ad formats
+make a “one thought, one day” product feel feature-heavy.
+
+4. RETENTION FEATURES TO KEEP/STRENGTHEN
+- On This Day across every previous year
+- calm reminder
+- timeline
+- search
+- reliable backup/export
+- optional mood trends
+- gentle milestones
+
+5. DISTRACTIONS
+- native ads between memories
+- post-save interstitials
+- streak-freeze mechanics
+- overanimated gradient text
+- premium CTA above the writing task
+- multiple journals before single-journal reliability is excellent.
+
+6. MULTIPLE JOURNALS
+Hide from marketing/UI until isolation is fully correct.
+Long term it can stay as an advanced feature, but it should not complicate the default flow.
+
+7. VOICE/VIDEO
+Keep as progressive-disclosure “memory extras,” not primary Home controls.
+They can add emotional value, but text should remain the product identity.
+
+8. ADS
+Ads inside the personal timeline and immediately after saving should not exist.
+They damage emotional trust.
+
+9. PREMIUM
+Good:
+- themes
+- advanced styled PDF
+- richer visualization
+- optional extra media capacity
+- supporter badge/customization
+Not premium:
+- basic writing/read/search
+- privacy
+- basic backup/portable export
+- restore of user-owned data.
+
+10. FIVE-YEAR RETENTION
+Trust beats feature count:
+- never lose data
+- predictable restore
+- open export formats
+- no intrusive ads
+- strong On This Day
+- stable design
+- no guilt mechanics
+- transparent privacy.
+
+Current marketplace evidence reinforces this:
+Presently’s recent reviews explicitly praise “no ads,” simplicity and years-long consistency;
+Day One promotes On This Day, backups, encryption and multi-format export; several direct
+one-sentence apps now exist.
+
+
+## AD. Production Scorecard
+===========================
+
+Core journaling:              6.0/10
+Data integrity:               3.5/10
+Backup reliability:           2.0/10
+Restore reliability:          1.0/10
+Media handling:               4.0/10
+App Lock core:                7.5/10
+Privacy:                      5.5/10
+Security:                     4.0/10
+UI/UX:                        6.0/10
+Accessibility:                3.0/10
+Performance:                  5.0/10
+Architecture:                 5.0/10
+Maintainability:              4.5/10
+Ads implementation:           2.0/10
+Billing:                      2.0/10
+Testing:                      0.5/10
+Android 16 compatibility:     7.0/10
+Play Store readiness:         3.0/10
+Product focus:                5.5/10
+Long-term trust:              3.0/10
+
+OVERALL PRODUCTION SCORE: 3.8/10
+
+This is not a judgment of the idea. It is a release-readiness score for a product expected to
+protect years of private user-generated data.
+
+
+## AE. P0–P3 Master Backlog
+===========================
+
+| ID | Priority | Category | Finding | File(s) | User Impact | Difficulty | Recommendation |
+|---|---|---|---|---|---|---|---|
+| OLAD-001 | P0 | Data | Home edit wipes tags/media | HomeScreen, ViewModel | silent data loss | M | preserve complete draft |
+| OLAD-002 | P0 | Restore | direct live DB overwrite | ViewModel | corruption/loss | H | logical atomic restore |
+| OLAD-003 | P0 | Security | ZIP traversal | ViewModel | attacker archive writes unintended paths | M | strict staged validator |
+| OLAD-004 | P0 | Restore | no rollback/integrity | ViewModel | false success/lost diary | H | validate+transaction |
+| OLAD-005 | P0 | Backup | live Room raw copy | ViewModel | unusable backup | H | logical archive |
+| OLAD-006 | P1 | Date | stale today across midnight | ViewModel/Home | wrong day overwritten | M | day provider/refresh |
+| OLAD-007 | P1 | Room | fresh default journal missing | Database | inconsistent journal state | S | v5/onCreate seed |
+| OLAD-008 | P1 | Room | no journal FK/index | Entity/Database | orphan/wrong-journal risk | M | v5 FK RESTRICT/index |
+| OLAD-009 | P1 | Flow | wrong journal search/date | ViewModel | cross-journal leakage | S | active ID everywhere |
+| OLAD-010 | P1 | Flow | collectors accumulate | ViewModel | stale UI/work | M | flatMapLatest/cancel Job |
+| OLAD-011 | P1 | Streak | read consumes freezes | Repository/ViewModel | user state corruption | M | pure calculation |
+| OLAD-012 | P1 | Streak | missed days added | Repository | wrong stats | S | fix algorithm/tests |
+| OLAD-013 | P1 | Audio | date-only identity | AudioAttachment/Entity | cross-journal audio | H | audioUri v5 |
+| OLAD-014 | P1 | Audio | recorder failure lifecycle | AudioRecorderHelper | leak/false recording | M | result+finally cleanup |
+| OLAD-015 | P1 | Media | MIME/extension/false success | ViewModel | broken attachments | M | MediaStorageManager |
+| OLAD-016 | P1 | Media | orphan deletion | ViewModel/components | privacy/storage | M | ref-aware cleanup |
+| OLAD-017 | P1 | Privacy | widget ignores App Lock | Widget | private text exposed | M | private widget mode |
+| OLAD-018 | P1 | Widget | default journal/goAsync | Widget | wrong/stale content | M | active ID/goAsync |
+| OLAD-019 | P1 | Ads | no UMP/CMP | App/ads | policy/privacy | M | UMP 4.0 |
+| OLAD-020 | P1 | Ads | GMA old | Gradle | privacy/fixes | M | 25.4.0 |
+| OLAD-021 | P1 | Billing | PBL6 unsupported | Gradle | Play rejection | M | 9.1.0 |
+| OLAD-022 | P1 | Billing | unrelated product unlock | BillingManager | revenue/entitlement | M | validate product IDs |
+| OLAD-023 | P1 | Testing | no tests/CI | project | regressions | M | core suite + Actions |
+| OLAD-024 | P2 | Draft | remember-only draft | Home | lost writing | M | SavedState |
+| OLAD-025 | P2 | Reminder | CLEAR_TASK | ReminderManager | lost draft | S | safe intent flags |
+| OLAD-026 | P2 | Reminder | timezone drift | ReminderManager | wrong reminder time | M | one-shot reschedule |
+| OLAD-027 | P2 | Privacy | Recents preview | MainActivity | sensitive preview | S | setRecentsScreenshotEnabled |
+| OLAD-028 | P2 | PDF | Unicode | PdfExportHelper | broken exports | H | Unicode engine/fonts |
+| OLAD-029 | P2 | PDF | missing fields | PdfExportHelper | incomplete user export | M | tags/all media/audio |
+| OLAD-030 | P2 | Legal | iText AGPL | Gradle/PDF | licensing risk | M | comply/license/replace |
+| OLAD-031 | P2 | UX | native every 2 memories | Timeline | trust/interruption | S | remove |
+| OLAD-032 | P2 | UX | interstitial after saves | Ads | habit interruption | S | remove from save flow |
+| OLAD-033 | P2 | Timeline | date picker timezone | Timeline | wrong date | S | UTC date |
+| OLAD-034 | P2 | Timeline | mood row overflow | Timeline | clipping | S | LazyRow/FlowRow |
+| OLAD-035 | P2 | Stats | days-left wrong | Stats | misleading | S | new metric/copy |
+| OLAD-036 | P2 | UI | duplicate Pin | EntryDetail | clutter | S | remove duplicate |
+| OLAD-037 | P2 | UI | delete copy false | EntryDetail | trust | S | align behavior/copy |
+| OLAD-038 | P2 | Share | main-thread bitmap | ShareImageHelper | jank/OOM | M | IO/Default |
+| OLAD-039 | P2 | A11y | small targets | components | inaccessible controls | M | 48dp |
+| OLAD-040 | P2 | A11y | chart semantics | Heatmap/Trend | inaccessible data | M | text equivalent |
+| OLAD-041 | P2 | A11y | contrast | Theme | readability | S | accessible palette |
+| OLAD-042 | P2 | i18n | hardcoded English | many | false language support | H | resource migration |
+| OLAD-043 | P2 | i18n | bad translations | values-* | confusing/broken | H | human QA |
+| OLAD-044 | P2 | Feature | tags not wired | Home/Timeline | claim mismatch | M | progressive TagInput |
+| OLAD-045 | P2 | Feature | heatmap/trend not wired | Stats | claim mismatch | M | implement or remove claim |
+| OLAD-046 | P2 | Product | multi-journal incomplete | UI/data | complexity/wrong data | H | finish or hide |
+| OLAD-047 | P2 | Build | broken gradlew | root | CI/Linux failure | S | regenerate wrapper |
+| OLAD-048 | P2 | Build | hardcoded JDK | gradle.properties | portability | S | remove |
+| OLAD-049 | P2 | Deps | old AndroidX/Compose | Gradle | platform regressions | H | isolated upgrade |
+| OLAD-050 | P2 | Deps | unused DataStore/Accompanist | Gradle | size/maintenance | S | remove |
+| OLAD-051 | P2 | UI | stale version text | strings/Settings | misleading | S | BuildConfig version |
+| OLAD-052 | P2 | Premium | theme ungated | Settings | monetization inconsistency | S | gate/remove label |
+| OLAD-053 | P3 | Cleanup | dead Gallery | MainNavigation | maintenance | S | delete until real |
+| OLAD-054 | P3 | Cleanup | temp root files/scripts | root | repo noise/risk | S | remove/archive |
+| OLAD-055 | P3 | Audio | currentPosition dead | Player | dead API | S | implement/remove |
+| OLAD-056 | P3 | Docs | README mismatch | README | misleading | S | rewrite from code |
+
+
+## AF. Implementation Roadmap
+=============================
+
+DEPENDENCY-AWARE ORDER
+
+PHASE 0 — STOP NEW DATA DAMAGE
+1. OLAD-001 Home edit preservation
+2. OLAD-006 midnight date refresh
+3. OLAD-009/010 journal-scoped cancellable Flow
+4. OLAD-011/012 pure streak
+5. OLAD-024 draft persistence
+6. OLAD-025 notification task flags
+7. disable/hide dangerous restore UI until new restore is ready if release testing occurs.
+
+PHASE 1 — DATABASE OWNERSHIP MODEL
+1. schema v5
+2. seed default journal
+3. FK + journalId index
+4. nullable audioUri
+5. schema export
+6. migration tests
+7. preserve legacy date-audio fallback.
+
+PHASE 2 — MEDIA/AUDIO RELIABILITY
+1. MediaStorageManager
+2. UUID files
+3. truthful extension/MIME metadata
+4. audio result API
+5. new audioUri recordings
+6. ref-aware permanent cleanup
+7. legacy media migration only after tests.
+
+PHASE 3 — BACKUP / RESTORE
+1. logical versioned backup
+2. checksum files
+3. archive validator
+4. staged restore
+5. one Room replacement transaction
+6. legacy importer
+7. malicious archive matrix
+8. only then re-enable/market backup restore as reliable.
+
+PHASE 4 — APP LOCK PERIMETER / PRIVACY
+1. widget private default
+2. active journal widget
+3. Recents screenshot protection when App Lock enabled
+4. optional FLAG_SECURE preference
+5. system-backup product decision
+6. accurate final privacy/Data Safety.
+
+PHASE 5 — BILLING + ADS COMPLIANCE
+1. PBL 9.1
+2. recognized entitlement state
+3. real localized prices
+4. UMP 4
+5. GMA 25.4
+6. remove memory-feed native ads
+7. remove post-save interstitial
+8. privacy choices.
+Do Billing and Ads in separate commits even though same release phase.
+
+PHASE 6 — REMINDER / WIDGET QUALITY
+1. one-shot local-time scheduling
+2. timezone/time/package broadcasts
+3. localized notification
+4. goAsync widget
+5. midnight widget update.
+
+PHASE 7 — PDF / PORTABILITY
+1. resolve iText licensing
+2. Unicode
+3. all fields
+4. bounded images
+5. private-share warning
+6. free machine-readable export.
+
+PHASE 8 — UI/UX SIMPLIFICATION
+1. writing first
+2. progressive attachments
+3. On This Day stack
+4. remove duplicate/dead controls
+5. correct stats copy
+6. calm streak language.
+
+PHASE 9 — ACCESSIBILITY / LOCALIZATION
+1. 48dp
+2. semantics
+3. contrast
+4. 200% font
+5. resource extraction
+6. human translation QA
+7. RTL.
+
+PHASE 10 — DEPENDENCY / PERFORMANCE
+1. isolated AndroidX/Compose upgrade
+2. Coil decision
+3. remove unused libs
+4. startup
+5. Macrobenchmark.
+
+PHASE 11 — TESTING / CI
+GitHub Actions:
+- unit
+- lint
+- assembleDebug
+- migration instrumentation on emulator separately if desired
+- release compile/bundle without secrets where possible.
+
+PHASE 12 — PLAY RELEASE
+Internal -> closed -> staged production.
+Do not skip restore matrix before production.
+
+
+## AG. Exact Code & Patches
+===========================
+
+IMPORTANT
+These patches are the recommended implementation, not code already present on master.
+Apply in phases and build/test after EACH phase.
+Do not paste all changes into one giant commit.
+
+----------------------------------------------------------------------
+# CHANGE OLAD-001 / OLAD-006 / OLAD-009 / OLAD-010 / OLAD-024
+# Priority: P0/P1
+# Home data preservation + correct journal Flow + midnight + save guard
+----------------------------------------------------------------------
+
+### 1. JournalUiState additions
+Existing:
+app/src/main/java/com/onelineaday/dailydiary/viewmodel/JournalViewModel.kt
+
+Add:
+```kotlin
+val isSaving: Boolean = false
+```
+
+### 2. Add cancellable jobs + current day
+In JournalViewModel fields:
+
+```kotlin
+private val _todayDate = MutableStateFlow(LocalDate.now())
+
+private var selectedDateJob: kotlinx.coroutines.Job? = null
+private var searchJob: kotlinx.coroutines.Job? = null
+
+private val saveMutex = kotlinx.coroutines.sync.Mutex()
+```
+
+Add:
+
+```kotlin
+fun refreshToday() {
+    val now = LocalDate.now()
+    if (_todayDate.value != now) {
+        _todayDate.value = now
+
+        if (_selectedDate.value.isBefore(now)) {
+            _selectedDate.value = now
+            _uiState.update {
+                it.copy(selectedDate = now)
+            }
+        }
+
+        loadData(_activeJournalId.value)
+    }
+}
+```
+
+### 3. Replace setSelectedDate()
+
+```kotlin
+fun setSelectedDate(date: LocalDate) {
+    _selectedDate.value = date
+
+    _uiState.update {
+        it.copy(selectedDate = date)
+    }
+
+    selectedDateJob?.cancel()
+
+    val journalId = _activeJournalId.value
+
+    selectedDateJob = viewModelScope.launch {
+        repository
+            .getEntryByDate(date, journalId)
+            .collectLatest { entry ->
+                _uiState.update {
+                    it.copy(todayEntry = entry)
+                }
+            }
+    }
+}
+```
+
+### 4. Replace search()
+
+```kotlin
+fun search(query: String) {
+    _uiState.update {
+        it.copy(searchQuery = query)
+    }
+
+    searchJob?.cancel()
+
+    if (query.isBlank()) {
+        _uiState.update {
+            it.copy(searchResults = emptyList())
+        }
+        return
+    }
+
+    val journalId = _activeJournalId.value
+
+    searchJob = viewModelScope.launch {
+        delay(250)
+
+        repository
+            .searchEntries(query.trim(), journalId)
+            .collectLatest { results ->
+                if (
+                    _uiState.value.searchQuery.trim() ==
+                    query.trim() &&
+                    _activeJournalId.value == journalId
+                ) {
+                    _uiState.update {
+                        it.copy(searchResults = results)
+                    }
+                }
+            }
+    }
+}
+```
+
+When active journal changes:
+
+```kotlin
+fun setActiveJournal(journalId: String) {
+    if (_activeJournalId.value == journalId) return
+
+    searchJob?.cancel()
+    selectedDateJob?.cancel()
+
+    _uiState.update {
+        it.copy(
+            searchQuery = "",
+            searchResults = emptyList()
+        )
+    }
+
+    _activeJournalId.value = journalId
+}
+```
+
+### 5. Make save single-flight
+
+Replace saveEntry() with this version after schema v5 adds audioUri:
+
+```kotlin
+fun saveEntry(
+    content: String,
+    mood: Mood,
+    photoUri: String? = null,
+    mediaUris: List<String> = emptyList(),
+    tags: List<String> = emptyList(),
+    audioUri: String? = null
+) {
+    viewModelScope.launch {
+        if (!saveMutex.tryLock()) return@launch
+
+        _uiState.update {
+            it.copy(isSaving = true)
+        }
+
+        try {
+            refreshToday()
+
+            val journalId = _activeJournalId.value
+            val date = _selectedDate.value
+
+            val existingEntry =
+                repository.getEntryByDateOnce(
+                    date = date,
+                    journalId = journalId
+                )
+
+            val finalMediaUris =
+                mediaUris
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .toMutableList()
+
+            if (
+                photoUri != null &&
+                photoUri.isNotBlank() &&
+                photoUri !in finalMediaUris
+            ) {
+                finalMediaUris.add(0, photoUri)
+            }
+
+            val normalizedTags =
+                tags
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinctBy { it.lowercase() }
+
+            val now = System.currentTimeMillis()
+
+            val entry =
+                if (existingEntry != null) {
+                    existingEntry.copy(
+                        content = content,
+                        mood = mood,
+                        photoUri = photoUri,
+                        mediaUris = finalMediaUris,
+                        tags = normalizedTags,
+                        audioUri = audioUri ?: existingEntry.audioUri,
+                        updatedAt = now
+                    )
+                } else {
+                    JournalEntry(
+                        date = date,
+                        journalId = journalId,
+                        content = content,
+                        mood = mood,
+                        photoUri = photoUri,
+                        mediaUris = finalMediaUris,
+                        tags = normalizedTags,
+                        audioUri = audioUri,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                }
+
+            repository.saveEntry(entry)
+
+            _uiState.update {
+                it.copy(
+                    message = "Entry saved!",
+                    entrySaved = true
+                )
+            }
+        } catch (t: Throwable) {
+            _uiState.update {
+                it.copy(message = "Could not save entry.")
+            }
+        } finally {
+            _uiState.update {
+                it.copy(isSaving = false)
+            }
+
+            saveMutex.unlock()
+        }
+    }
+}
+```
+
+### 6. HomeScreen: preserve complete entry state
+
+Add:
+```kotlin
+import androidx.compose.runtime.saveable.rememberSaveable
+```
+
+Use saveable draft state:
+
+```kotlin
+var entryText by rememberSaveable {
+    mutableStateOf("")
+}
+
+var selectedMoodName by rememberSaveable {
+    mutableStateOf(Mood.NEUTRAL.name)
+}
+
+val selectedMood =
+    runCatching {
+        Mood.valueOf(selectedMoodName)
+    }.getOrDefault(Mood.NEUTRAL)
+
+var photoUri by rememberSaveable {
+    mutableStateOf<String?>(null)
+}
+
+var draftMediaUris by rememberSaveable {
+    mutableStateOf(arrayListOf<String>())
+}
+
+var draftTags by rememberSaveable {
+    mutableStateOf(arrayListOf<String>())
+}
+
+var draftAudioUri by rememberSaveable {
+    mutableStateOf<String?>(null)
+}
+
+var isEditing by rememberSaveable {
+    mutableStateOf(false)
+}
+```
+
+When mood changes:
+```kotlin
+selectedMoodName = it.name
+```
+
+When Edit is tapped:
+
+```kotlin
+val entry = uiState.todayEntry
+
+if (entry != null) {
+    entryText = entry.content
+    selectedMoodName = entry.mood.name
+    photoUri = entry.photoUri
+    draftMediaUris = ArrayList(entry.mediaUris)
+    draftTags = ArrayList(entry.tags)
+    draftAudioUri = entry.audioUri
+    isEditing = true
+}
+```
+
+Save eligibility:
+
+```kotlin
+val canSave =
+    !uiState.isSaving &&
+    (
+        entryText.isNotBlank() ||
+        photoUri != null ||
+        draftMediaUris.isNotEmpty() ||
+        draftAudioUri != null
+    )
+```
+
+Save:
+
+```kotlin
+viewModel.saveEntry(
+    content = entryText.trim(),
+    mood = selectedMood,
+    photoUri = photoUri,
+    mediaUris = draftMediaUris,
+    tags = draftTags,
+    audioUri = draftAudioUri
+)
+```
+
+Reset after confirmed save:
+
+```kotlin
+LaunchedEffect(uiState.entrySaved) {
+    if (!uiState.entrySaved) return@LaunchedEffect
+
+    entryText = ""
+    selectedMoodName = Mood.NEUTRAL.name
+    photoUri = null
+    draftMediaUris = arrayListOf()
+    draftTags = arrayListOf()
+    draftAudioUri = null
+    isEditing = false
+
+    viewModel.clearEntrySavedFlag()
+}
+```
+
+Wire tags:
+
+```kotlin
+TagInput(
+    tags = draftTags,
+    onTagsChanged = {
+        draftTags = ArrayList(it)
+    }
+)
+```
+
+Do not physically delete a removed file until the successfully saved DB state no longer
+references it.
+
+### 7. Foreground + midnight refresh
+
+In MainNavigation.kt:
+
+```kotlin
+val lifecycleOwner = LocalLifecycleOwner.current
+
+DisposableEffect(lifecycleOwner) {
+    val observer =
+        LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshToday()
+            }
+        }
+
+    lifecycleOwner.lifecycle.addObserver(observer)
+
+    onDispose {
+        lifecycleOwner.lifecycle.removeObserver(observer)
+    }
+}
+```
+
+Also:
+
+```kotlin
+LaunchedEffect(Unit) {
+    while (isActive) {
+        viewModel.refreshToday()
+
+        val now = java.time.ZonedDateTime.now()
+
+        val nextMidnight =
+            now.toLocalDate()
+                .plusDays(1)
+                .atStartOfDay(now.zone)
+
+        val waitMillis =
+            java.time.Duration
+                .between(now, nextMidnight)
+                .toMillis()
+                .coerceAtLeast(1_000L)
+
+        delay(waitMillis + 500L)
+    }
+}
+```
+
+Required imports:
+```kotlin
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+```
+
+
+----------------------------------------------------------------------
+# CHANGE OLAD-007 / OLAD-008 / OLAD-013
+# Priority: P1
+# Room schema v5: default journal + FK/index + audioUri
+----------------------------------------------------------------------
+
+### JournalEntry.kt — complete replacement
+
+```kotlin
+package com.onelineaday.dailydiary.data
+
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import java.time.LocalDate
+
+@Entity(
+    tableName = "journal_entries",
+    primaryKeys = ["date", "journalId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = Journal::class,
+            parentColumns = ["id"],
+            childColumns = ["journalId"],
+            onDelete = ForeignKey.RESTRICT,
+            onUpdate = ForeignKey.NO_ACTION
+        )
+    ],
+    indices = [
+        Index(value = ["journalId"])
+    ]
+)
+data class JournalEntry(
+    val date: LocalDate,
+    val journalId: String = DEFAULT_JOURNAL_ID,
+    val content: String,
+    val mood: Mood = Mood.NEUTRAL,
+    val photoUri: String? = null,
+    val mediaUris: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val audioUri: String? = null,
+    val isPinned: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val DEFAULT_JOURNAL_ID = "default"
+    }
+}
+
+enum class Mood(
+    val emoji: String
+) {
+    HAPPY("😊"),
+    NEUTRAL("😐"),
+    SAD("😔"),
+    ANGRY("😠"),
+    EXCITED("🤩"),
+    TIRED("😴"),
+    MOTIVATED("💪"),
+    LOVED("🥰"),
+    ANXIOUS("😰"),
+    GRATEFUL("🙏")
+}
+
+data class MoodCount(
+    val mood: Mood,
+    val count: Int
+)
+```
+
+IMPORTANT:
+Removing Mood.label requires updating UI to use resource-backed display labels in OLAD-042.
+
+### JournalDao additions/replacements
+
+Use:
+```kotlin
+@Upsert
+suspend fun saveEntry(entry: JournalEntry)
+```
+
+Add:
+```kotlin
+@Query(
+    """
+    SELECT * FROM journal_entries
+    WHERE date = :date
+      AND journalId = :journalId
+    LIMIT 1
+    """
+)
+suspend fun getEntryByDateOnce(
+    date: LocalDate,
+    journalId: String
+): JournalEntry?
+
+@Query(
+    """
+    SELECT * FROM journal_entries
+    WHERE journalId = :journalId
+      AND (
+        content LIKE '%' || :query || '%'
+        OR tags LIKE '%' || :query || '%'
+      )
+    ORDER BY date DESC
+    """
+)
+fun searchEntries(
+    query: String,
+    journalId: String
+): Flow<List<JournalEntry>>
+
+@Query(
+    """
+    SELECT * FROM journal_entries
+    ORDER BY journalId ASC, date ASC
+    """
+)
+suspend fun getAllEntriesForBackup(): List<JournalEntry>
+
+@Query(
+    """
+    SELECT * FROM journals
+    ORDER BY createdAt ASC
+    """
+)
+suspend fun getAllJournalsOnce(): List<Journal>
+
+@Query("SELECT COUNT(*) FROM journal_entries")
+suspend fun getTotalEntryCountOnce(): Int
+
+@Query("SELECT COUNT(*) FROM journals")
+suspend fun getJournalCountOnce(): Int
+
+@Query("DELETE FROM journal_entries")
+suspend fun deleteAllEntriesForRestore()
+
+@Query("DELETE FROM journals")
+suspend fun deleteAllJournalsForRestore()
+
+@Insert(onConflict = OnConflictStrategy.ABORT)
+suspend fun insertJournalsForRestore(
+    journals: List<Journal>
+)
+
+@Insert(onConflict = OnConflictStrategy.ABORT)
+suspend fun insertEntriesForRestore(
+    entries: List<JournalEntry>
+)
+```
+
+Do not provide default journalId arguments on DAO methods used by production features.
+
+### JournalDatabase migration 4 -> 5
+
+Change:
+```kotlin
+version = VERSION,
+exportSchema = true
+```
+
+Use:
+```kotlin
+companion object {
+    const val VERSION = 5
+    // existing INSTANCE...
+}
+```
+
+Migration:
+
+```kotlin
+private val MIGRATION_4_5 =
+    object : Migration(4, 5) {
+        override fun migrate(
+            db: SupportSQLiteDatabase
+        ) {
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO journals(
+                    id,
+                    name,
+                    colorHex,
+                    createdAt
+                )
+                SELECT DISTINCT
+                    journalId,
+                    CASE
+                        WHEN journalId = 'default'
+                            THEN 'My Diary'
+                        ELSE 'Recovered Journal'
+                    END,
+                    NULL,
+                    0
+                FROM journal_entries
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO journals(
+                    id,
+                    name,
+                    colorHex,
+                    createdAt
+                )
+                VALUES(
+                    'default',
+                    'My Diary',
+                    NULL,
+                    0
+                )
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS journal_entries_new(
+                    date TEXT NOT NULL,
+                    journalId TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    mood TEXT NOT NULL,
+                    photoUri TEXT,
+                    mediaUris TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    audioUri TEXT,
+                    isPinned INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    PRIMARY KEY(date, journalId),
+                    FOREIGN KEY(journalId)
+                        REFERENCES journals(id)
+                        ON UPDATE NO ACTION
+                        ON DELETE RESTRICT
+                )
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+                INSERT INTO journal_entries_new(
+                    date,
+                    journalId,
+                    content,
+                    mood,
+                    photoUri,
+                    mediaUris,
+                    tags,
+                    audioUri,
+                    isPinned,
+                    createdAt,
+                    updatedAt
+                )
+                SELECT
+                    date,
+                    journalId,
+                    content,
+                    mood,
+                    photoUri,
+                    mediaUris,
+                    tags,
+                    NULL,
+                    isPinned,
+                    createdAt,
+                    updatedAt
+                FROM journal_entries
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                "DROP TABLE journal_entries"
+            )
+
+            db.execSQL(
+                """
+                ALTER TABLE journal_entries_new
+                RENAME TO journal_entries
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+                CREATE INDEX IF NOT EXISTS
+                index_journal_entries_journalId
+                ON journal_entries(journalId)
+                """.trimIndent()
+            )
+        }
+    }
+```
+
+Database builder:
+
+```kotlin
+Room.databaseBuilder(
+    context.applicationContext,
+    JournalDatabase::class.java,
+    "journal_database"
+)
+    .addMigrations(
+        MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5
+    )
+    .addCallback(
+        object : Callback() {
+            override fun onCreate(
+                db: SupportSQLiteDatabase
+            ) {
+                seedDefaultJournal(db)
+            }
+
+            override fun onOpen(
+                db: SupportSQLiteDatabase
+            ) {
+                seedDefaultJournal(db)
+            }
+        }
+    )
+    .build()
+```
+
+Helper:
+
+```kotlin
+private fun seedDefaultJournal(
+    db: SupportSQLiteDatabase
+) {
+    db.execSQL(
+        """
+        INSERT OR IGNORE INTO journals(
+            id,
+            name,
+            colorHex,
+            createdAt
+        )
+        VALUES(
+            'default',
+            'My Diary',
+            NULL,
+            0
+        )
+        """.trimIndent()
+    )
+}
+```
+
+Add module Gradle schema export:
+```kotlin
+ksp {
+    arg(
+        "room.schemaLocation",
+        "$projectDir/schemas"
+    )
+}
+```
+
+Do not ship schema v5 before migration tests pass on a copy of real existing v4 data.
+
+
+----------------------------------------------------------------------
+# CHANGE OLAD-011 / OLAD-012
+# Priority: P1
+# Pure streak calculation
+----------------------------------------------------------------------
+
+CREATE:
+data/StreakCalculator.kt
+
+```kotlin
+package com.onelineaday.dailydiary.data
+
+import java.time.LocalDate
+
+object StreakCalculator {
+
+    fun current(
+        entryDates: Set<LocalDate>,
+        today: LocalDate,
+        frozenDates: Set<LocalDate> =
+            emptySet()
+    ): Int {
+        var cursor = today
+
+        if (
+            cursor !in entryDates &&
+            cursor !in frozenDates
+        ) {
+            cursor =
+                cursor.minusDays(1)
+        }
+
+        var count = 0
+
+        while (true) {
+            when {
+                cursor in entryDates -> {
+                    count++
+                    cursor =
+                        cursor.minusDays(1)
+                }
+
+                cursor in frozenDates -> {
+                    // Preserve continuity but do not count a missed day.
+                    cursor =
+                        cursor.minusDays(1)
+                }
+
+                else -> return count
+            }
+        }
+    }
+
+    fun longest(
+        entryDates: Set<LocalDate>
+    ): Int {
+        val dates =
+            entryDates.sorted()
+
+        if (dates.isEmpty()) {
+            return 0
+        }
+
+        var longest = 1
+        var current = 1
+
+        for (
+            index in
+            1 until dates.size
+        ) {
+            if (
+                dates[index] ==
+                dates[index - 1]
+                    .plusDays(1)
+            ) {
+                current++
+                longest =
+                    maxOf(
+                        longest,
+                        current
+                    )
+            } else {
+                current = 1
+            }
+        }
+
+        return longest
+    }
+}
+```
+
+Repository:
+
+```kotlin
+fun calculateCurrentStreak(
+    entries: List<JournalEntry>,
+    today: LocalDate,
+    frozenDates: Set<LocalDate> =
+        emptySet()
+): Int =
+    StreakCalculator.current(
+        entryDates =
+            entries
+                .map { it.date }
+                .toSet(),
+        today = today,
+        frozenDates = frozenDates
+    )
+```
+
+Absolutely no SharedPreferences writes/callbacks in the calculator.
+
+If freezes remain a real feature, store USED freeze dates explicitly in Room.
+Otherwise remove the freeze feature rather than maintaining hidden mutable side effects.
+
+
+----------------------------------------------------------------------
+# CHANGE OLAD-014
+# Priority: P1
+# Audio recorder failure-safety + explicit file ownership
+----------------------------------------------------------------------
+
+EXISTING:
+app/src/main/java/com/onelineaday/dailydiary/audio/AudioRecorderHelper.kt
+
+ACTION:
+REPLACE
+
+```kotlin
+package com.onelineaday.dailydiary.audio
+
+import android.content.Context
+import android.media.MediaRecorder
+import android.os.Build
+import java.io.File
+
+class AudioRecorderHelper(
+    private val context: Context
+) {
+
+    private var mediaRecorder: MediaRecorder? = null
+
+    var isRecording: Boolean = false
+        private set
+
+    fun startRecording(
+        outputFile: File
+    ): Result<Unit> {
+        if (isRecording || mediaRecorder != null) {
+            return Result.failure(
+                IllegalStateException(
+                    "A recording is already active."
+                )
+            )
+        }
+
+        outputFile.parentFile?.mkdirs()
+
+        val recorder =
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.S
+            ) {
+                MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+        return try {
+            recorder.setAudioSource(
+                MediaRecorder.AudioSource.MIC
+            )
+
+            recorder.setOutputFormat(
+                MediaRecorder.OutputFormat.MPEG_4
+            )
+
+            recorder.setAudioEncoder(
+                MediaRecorder.AudioEncoder.AAC
+            )
+
+            recorder.setAudioEncodingBitRate(
+                128_000
+            )
+
+            recorder.setAudioSamplingRate(
+                44_100
+            )
+
+            recorder.setOutputFile(
+                outputFile.absolutePath
+            )
+
+            recorder.prepare()
+            recorder.start()
+
+            mediaRecorder = recorder
+            isRecording = true
+
+            Result.success(Unit)
+        } catch (t: Throwable) {
+            safelyRelease(recorder)
+
+            mediaRecorder = null
+            isRecording = false
+
+            runCatching {
+                if (outputFile.exists()) {
+                    outputFile.delete()
+                }
+            }
+
+            Result.failure(t)
+        }
+    }
+
+    fun stopRecording(
+        outputFile: File
+    ): Result<File> {
+        val recorder =
+            mediaRecorder
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "No recording is active."
+                    )
+                )
+
+        if (!isRecording) {
+            safelyRelease(recorder)
+            mediaRecorder = null
+
+            return Result.failure(
+                IllegalStateException(
+                    "Recorder state is invalid."
+                )
+            )
+        }
+
+        return try {
+            recorder.stop()
+
+            if (
+                !outputFile.exists() ||
+                outputFile.length() <= 0L
+            ) {
+                throw IllegalStateException(
+                    "The recording file is empty."
+                )
+            }
+
+            Result.success(outputFile)
+        } catch (t: Throwable) {
+            runCatching {
+                if (outputFile.exists()) {
+                    outputFile.delete()
+                }
+            }
+
+            Result.failure(t)
+        } finally {
+            safelyRelease(recorder)
+            mediaRecorder = null
+            isRecording = false
+        }
+    }
+
+    fun cancelRecording(
+        outputFile: File?
+    ) {
+        val recorder = mediaRecorder
+
+        if (recorder != null) {
+            // MediaRecorder.stop() may itself throw when too little audio
+            // has been recorded, so cancellation must never depend on it.
+            runCatching {
+                if (isRecording) {
+                    recorder.stop()
+                }
+            }
+
+            safelyRelease(recorder)
+        }
+
+        mediaRecorder = null
+        isRecording = false
+
+        outputFile?.let { file ->
+            runCatching {
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+        }
+    }
+
+    private fun safelyRelease(
+        recorder: MediaRecorder
+    ) {
+        runCatching {
+            recorder.reset()
+        }
+
+        runCatching {
+            recorder.release()
+        }
+    }
+}
+```
+
+NEW AUDIO FILE FACTORY
+Create inside a media/audio storage helper:
+
+```kotlin
+fun createAudioDestination(
+    context: Context
+): File {
+    val directory =
+        File(
+            context.filesDir,
+            "journal_media/audio"
+        ).apply {
+            mkdirs()
+        }
+
+    return File(
+        directory,
+        "${java.util.UUID.randomUUID()}.m4a"
+    )
+}
+```
+
+Do NOT use:
+`audio_<date>.m4a`
+
+because the same date can exist in multiple journals.
+
+AudioAttachment API change:
+
+```kotlin
+@Composable
+fun AudioAttachment(
+    audioUri: String?,
+    modifier: Modifier = Modifier,
+    onAudioSaved: (String) -> Unit,
+    onAudioDeleted: () -> Unit
+)
+```
+
+State:
+
+```kotlin
+var pendingRecording by remember {
+    mutableStateOf<File?>(null)
+}
+
+var isRecording by remember {
+    mutableStateOf(false)
+}
+
+val existingAudioFile =
+    audioUri
+        ?.takeIf { it.startsWith("/") }
+        ?.let(::File)
+
+val fileExists =
+    existingAudioFile?.exists() == true
+```
+
+Starting a recording:
+
+```kotlin
+fun beginRecording() {
+    val destination =
+        createAudioDestination(context)
+
+    recorder
+        .startRecording(destination)
+        .onSuccess {
+            pendingRecording = destination
+            isRecording = true
+        }
+        .onFailure {
+            pendingRecording = null
+            isRecording = false
+
+            Toast.makeText(
+                context,
+                context.getString(
+                    R.string.audio_recording_failed
+                ),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+}
+```
+
+Stopping:
+
+```kotlin
+val pending =
+    pendingRecording
+        ?: return@IconButton
+
+recorder
+    .stopRecording(pending)
+    .onSuccess { completed ->
+        isRecording = false
+        pendingRecording = null
+
+        onAudioSaved(
+            completed.absolutePath
+        )
+    }
+    .onFailure {
+        isRecording = false
+        pendingRecording = null
+
+        Toast.makeText(
+            context,
+            context.getString(
+                R.string.audio_recording_failed
+            ),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+```
+
+Disposal:
+
+```kotlin
+DisposableEffect(Unit) {
+    onDispose {
+        player.release()
+
+        if (
+            recorder.isRecording ||
+            pendingRecording != null
+        ) {
+            recorder.cancelRecording(
+                pendingRecording
+            )
+        }
+    }
+}
+```
+
+Delete:
+Do not directly delete the physical file before the JournalEntry update is committed.
+Call the parent with `onAudioDeleted()`, save `audioUri = null`, then use reference-aware
+cleanup after successful DB update.
+
+Legacy compatibility:
+For existing users whose v4 entry has `audioUri == null`, resolve the old date-only file
+only as a fallback:
+
+```kotlin
+fun legacyAudioFile(
+    context: Context,
+    date: LocalDate
+): File =
+    File(
+        context.filesDir,
+        "audio_${date}.m4a"
+    )
+```
+
+Never rename/delete legacy audio during the v4->v5 schema migration itself. A DB migration
+must remain deterministic and should not perform filesystem mutation.
+
+
+----------------------------------------------------------------------
+# CHANGE OLAD-015 / OLAD-016
+# Priority: P1
+# MediaStorageManager: truthful type, UUID names, background I/O
+----------------------------------------------------------------------
+
+CREATE:
+app/src/main/java/com/onelineaday/dailydiary/media/MediaStorageManager.kt
+
+```kotlin
+package com.onelineaday.dailydiary.media
+
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
+import java.util.UUID
+
+class MediaStorageManager(
+    private val context: Context
+) {
+
+    private val mediaRoot =
+        File(
+            context.filesDir,
+            "journal_media"
+        ).apply {
+            mkdirs()
+        }
+
+    suspend fun importVisualMedia(
+        sourceUri: Uri
+    ): Result<StoredMedia> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val resolver =
+                    context.contentResolver
+
+                val mimeType =
+                    resolver
+                        .getType(sourceUri)
+                        ?.lowercase(Locale.ROOT)
+                        ?: error(
+                            "Unable to determine media type."
+                        )
+
+                require(
+                    mimeType.startsWith("image/") ||
+                    mimeType.startsWith("video/")
+                ) {
+                    "Only image and video files are supported."
+                }
+
+                val category =
+                    if (
+                        mimeType.startsWith("video/")
+                    ) {
+                        "video"
+                    } else {
+                        "image"
+                    }
+
+                val extension =
+                    determineSafeExtension(
+                        displayName =
+                            queryDisplayName(
+                                sourceUri
+                            ),
+                        mimeType =
+                            mimeType
+                    )
+
+                val directory =
+                    File(
+                        mediaRoot,
+                        category
+                    ).apply {
+                        mkdirs()
+                    }
+
+                val destination =
+                    File(
+                        directory,
+                        "${UUID.randomUUID()}$extension"
+                    )
+
+                val input =
+                    resolver.openInputStream(
+                        sourceUri
+                    ) ?: error(
+                        "Selected media could not be opened."
+                    )
+
+                try {
+                    input.use { source ->
+                        FileOutputStream(
+                            destination
+                        ).use { output ->
+                            source.copyTo(output)
+                            output.fd.sync()
+                        }
+                    }
+
+                    require(
+                        destination.exists() &&
+                        destination.length() > 0L
+                    ) {
+                        "Selected media was empty."
+                    }
+
+                    StoredMedia(
+                        absolutePath =
+                            destination.absolutePath,
+                        mimeType =
+                            mimeType,
+                        byteSize =
+                            destination.length()
+                    )
+                } catch (t: Throwable) {
+                    runCatching {
+                        destination.delete()
+                    }
+
+                    throw t
+                }
+            }
+        }
+
+    fun isManagedPath(
+        path: String
+    ): Boolean {
+        val canonicalRoot =
+            runCatching {
+                mediaRoot.canonicalFile
+            }.getOrNull()
+                ?: return false
+
+        val canonicalFile =
+            runCatching {
+                File(path).canonicalFile
+            }.getOrNull()
+                ?: return false
+
+        return canonicalFile.path.startsWith(
+            canonicalRoot.path +
+                File.separator
+        )
+    }
+
+    suspend fun deleteIfUnreferenced(
+        path: String,
+        referencedPaths: Set<String>
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            if (
+                path in referencedPaths ||
+                !isManagedPath(path)
+            ) {
+                return@withContext false
+            }
+
+            runCatching {
+                File(path).delete()
+            }.getOrDefault(false)
+        }
+
+    private fun queryDisplayName(
+        uri: Uri
+    ): String? =
+        context.contentResolver
+            .query(
+                uri,
+                arrayOf(
+                    OpenableColumns.DISPLAY_NAME
+                ),
+                null,
+                null,
+                null
+            )
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    cursor.getString(0)
+                } else {
+                    null
+                }
+            }
+
+    private fun determineSafeExtension(
+        displayName: String?,
+        mimeType: String
+    ): String {
+        val fromName =
+            displayName
+                ?.substringAfterLast(
+                    '.',
+                    missingDelimiterValue = ""
+                )
+                ?.lowercase(Locale.ROOT)
+                ?.takeIf {
+                    it.matches(
+                        Regex("[a-z0-9]{1,10}")
+                    )
+                }
+
+        if (fromName != null) {
+            return ".$fromName"
+        }
+
+        return when (mimeType) {
+            "image/jpeg" -> ".jpg"
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            "image/heic",
+            "image/heif" -> ".heic"
+            "image/gif" -> ".gif"
+            "video/mp4" -> ".mp4"
+            "video/webm" -> ".webm"
+            "video/3gpp" -> ".3gp"
+            else -> ".bin"
+        }
+    }
+}
+
+data class StoredMedia(
+    val absolutePath: String,
+    val mimeType: String,
+    val byteSize: Long
+)
+```
+
+IMPORTANT:
+This preserves original bytes. It does NOT pretend PNG/HEIC bytes are JPEG.
+It does not trust MIME for security; MIME only determines whether the selected object belongs
+to the supported visual-media category. Rendering must still fail safely for malformed files.
+
+ViewModel:
+
+```kotlin
+private val mediaStorage =
+    MediaStorageManager(application)
+
+suspend fun importMedia(
+    sourceUri: Uri
+): String? =
+    mediaStorage
+        .importVisualMedia(sourceUri)
+        .getOrNull()
+        ?.absolutePath
+```
+
+Compose picker callback:
+
+```kotlin
+scope.launch {
+    val path =
+        viewModel.importMedia(uri)
+
+    if (path != null) {
+        photoUri = path
+    } else {
+        Toast.makeText(
+            context,
+            context.getString(
+                R.string.media_import_failed
+            ),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+}
+```
+
+For multiple media:
+
+```kotlin
+scope.launch {
+    val imported =
+        uris.mapNotNull {
+            viewModel.importMedia(it)
+        }
+
+    editedMediaUris =
+        (
+            editedMediaUris +
+            imported
+        ).distinct()
+}
+```
+
+REFERENCE-AWARE DELETION
+Before removing a managed file physically, query all JournalEntry rows and build:
+
+```kotlin
+fun JournalEntry.referencedFilePaths():
+    Set<String> =
+    buildSet {
+        photoUri
+            ?.takeIf {
+                it.startsWith("/")
+            }
+            ?.let(::add)
+
+        mediaUris
+            .filter {
+                it.startsWith("/")
+            }
+            .forEach(::add)
+
+        audioUri
+            ?.takeIf {
+                it.startsWith("/")
+            }
+            ?.let(::add)
+    }
+```
+
+After a DB update/delete commits:
+1. collect all references from all remaining entries,
+2. only delete old managed files absent from that set.
+
+Never delete before DB commit.
+
+
+----------------------------------------------------------------------
+# CHANGE OLAD-002 / OLAD-003 / OLAD-004 / OLAD-005
+# Priority: P0
+# Atomic logical backup/restore
+----------------------------------------------------------------------
+
+CREATE:
+app/src/main/java/com/onelineaday/dailydiary/backup/BackupArchiveManager.kt
+
+NOTE:
+This is the current-format implementation. It intentionally never copies a live Room DB file
+and never overwrites the production SQLite file.
+
+```kotlin
+package com.onelineaday.dailydiary.backup
+
+import android.content.Context
+import android.net.Uri
+import androidx.core.content.FileProvider
+import androidx.room.withTransaction
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.onelineaday.dailydiary.data.Journal
+import com.onelineaday.dailydiary.data.JournalDatabase
+import com.onelineaday.dailydiary.data.JournalEntry
+import com.onelineaday.dailydiary.data.Mood
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.security.MessageDigest
+import java.time.LocalDate
+import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
+class BackupArchiveManager(
+    private val context: Context,
+    private val database: JournalDatabase
+) {
+
+    companion object {
+        const val FORMAT_VERSION = 1
+
+        private const val APP_ID =
+            "com.onelineaday.dailydiary"
+
+        private const val MAX_ARCHIVE_BYTES =
+            4L * 1024L * 1024L * 1024L
+
+        private const val MAX_EXPANDED_BYTES =
+            8L * 1024L * 1024L * 1024L
+
+        private const val MAX_SINGLE_FILE_BYTES =
+            2L * 1024L * 1024L * 1024L
+
+        private const val MAX_ZIP_ENTRIES =
+            100_000
+    }
+
+    private val gson: Gson =
+        GsonBuilder()
+            .disableHtmlEscaping()
+            .create()
+
+    suspend fun exportBackup():
+        BackupExportResult =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val dao =
+                    database.journalDao()
+
+                val snapshot =
+                    database.withTransaction {
+                        BackupSnapshot(
+                            journals =
+                                dao.getAllJournalsOnce(),
+                            entries =
+                                dao.getAllEntriesForBackup()
+                        )
+                    }
+
+                require(
+                    snapshot.journals.isNotEmpty()
+                ) {
+                    "No journal metadata exists."
+                }
+
+                val sourceToDescriptor =
+                    linkedMapOf<
+                        String,
+                        BackupFileDto
+                    >()
+
+                fun descriptorFor(
+                    path: String,
+                    kind: BackupFileKind
+                ): BackupFileDto =
+                    sourceToDescriptor
+                        .getOrPut(path) {
+                            val file =
+                                File(path)
+
+                            require(
+                                file.exists() &&
+                                file.isFile
+                            ) {
+                                "A referenced attachment is missing."
+                            }
+
+                            require(
+                                file.length() <=
+                                    MAX_SINGLE_FILE_BYTES
+                            ) {
+                                "An attachment exceeds the supported size."
+                            }
+
+                            val id =
+                                UUID.randomUUID()
+                                    .toString()
+
+                            val extension =
+                                file.extension
+                                    .takeIf {
+                                        it.matches(
+                                            Regex(
+                                                "[A-Za-z0-9]{1,10}"
+                                            )
+                                        )
+                                    }
+                                    ?.let {
+                                        ".$it"
+                                    }
+                                    ?: ".bin"
+
+                            BackupFileDto(
+                                id = id,
+                                archivePath =
+                                    "files/$id$extension",
+                                kind = kind.name,
+                                byteSize =
+                                    file.length(),
+                                sha256 =
+                                    sha256(file)
+                            )
+                        }
+
+                val entryDtos =
+                    snapshot.entries.map {
+                        entry ->
+
+                        val photoId =
+                            entry.photoUri
+                                ?.takeIf {
+                                    it.startsWith("/")
+                                }
+                                ?.let {
+                                    descriptorFor(
+                                        it,
+                                        BackupFileKind.MEDIA
+                                    ).id
+                                }
+
+                        val mediaIds =
+                            entry.mediaUris
+                                .filter {
+                                    it.startsWith("/")
+                                }
+                                .distinct()
+                                .map {
+                                    descriptorFor(
+                                        it,
+                                        BackupFileKind.MEDIA
+                                    ).id
+                                }
+
+                        val audioId =
+                            entry.audioUri
+                                ?.takeIf {
+                                    it.startsWith("/")
+                                }
+                                ?.let {
+                                    descriptorFor(
+                                        it,
+                                        BackupFileKind.AUDIO
+                                    ).id
+                                }
+
+                        BackupEntryDto(
+                            date =
+                                entry.date.toString(),
+                            journalId =
+                                entry.journalId,
+                            content =
+                                entry.content,
+                            mood =
+                                entry.mood.name,
+                            photoFileId =
+                                photoId,
+                            mediaFileIds =
+                                mediaIds,
+                            tags =
+                                entry.tags,
+                            audioFileId =
+                                audioId,
+                            isPinned =
+                                entry.isPinned,
+                            createdAt =
+                                entry.createdAt,
+                            updatedAt =
+                                entry.updatedAt
+                        )
+                    }
+
+                val manifest =
+                    BackupManifest(
+                        formatVersion =
+                            FORMAT_VERSION,
+                        appId =
+                            APP_ID,
+                        databaseSchemaVersion =
+                            JournalDatabase.VERSION,
+                        createdAtEpochMs =
+                            System.currentTimeMillis(),
+                        journals =
+                            snapshot.journals.map {
+                                BackupJournalDto(
+                                    id = it.id,
+                                    name = it.name,
+                                    colorHex =
+                                        it.colorHex,
+                                    createdAt =
+                                        it.createdAt
+                                )
+                            },
+                        entries =
+                            entryDtos,
+                        files =
+                            sourceToDescriptor
+                                .values
+                                .toList()
+                    )
+
+                require(
+                    manifest.files
+                        .sumOf {
+                            it.byteSize
+                        } <=
+                        MAX_EXPANDED_BYTES
+                ) {
+                    "Backup exceeds the supported expanded size."
+                }
+
+                val exportDir =
+                    File(
+                        context.cacheDir,
+                        "journal_exports"
+                    ).apply {
+                        mkdirs()
+                    }
+
+                val output =
+                    File(
+                        exportDir,
+                        "OneLineADay_${System.currentTimeMillis()}.olad.zip"
+                    )
+
+                ZipOutputStream(
+                    BufferedOutputStream(
+                        FileOutputStream(
+                            output
+                        )
+                    )
+                ).use { zip ->
+                    zip.putNextEntry(
+                        ZipEntry(
+                            "manifest.json"
+                        )
+                    )
+
+                    zip.write(
+                        gson.toJson(
+                            manifest
+                        ).toByteArray(
+                            Charsets.UTF_8
+                        )
+                    )
+
+                    zip.closeEntry()
+
+                    sourceToDescriptor
+                        .forEach {
+                                sourcePath,
+                                descriptor ->
+
+                            zip.putNextEntry(
+                                ZipEntry(
+                                    descriptor.archivePath
+                                )
+                            )
+
+                            FileInputStream(
+                                File(sourcePath)
+                            ).use {
+                                input ->
+                                input.copyTo(zip)
+                            }
+
+                            zip.closeEntry()
+                        }
+                }
+
+                require(
+                    output.length() <=
+                        MAX_ARCHIVE_BYTES
+                ) {
+                    output.delete()
+                    "Backup archive is too large."
+                }
+
+                val uri =
+                    FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.provider",
+                        output
+                    )
+
+                BackupExportResult.Success(
+                    uri = uri,
+                    file = output
+                )
+            }.getOrElse {
+                BackupExportResult.Failure(
+                    reason =
+                        it.message
+                            ?: "Backup failed."
+                )
+            }
+        }
+
+    suspend fun restoreBackup(
+        sourceUri: Uri
+    ): BackupRestoreResult =
+        withContext(Dispatchers.IO) {
+            val session =
+                UUID.randomUUID()
+                    .toString()
+
+            val stagingDirectory =
+                File(
+                    context.cacheDir,
+                    "restore/$session"
+                )
+
+            val restoredFilesDirectory =
+                File(
+                    context.filesDir,
+                    "journal_media/restored/$session"
+                )
+
+            var databaseCommitted =
+                false
+
+            try {
+                stagingDirectory.mkdirs()
+                restoredFilesDirectory.mkdirs()
+
+                val stagedArchive =
+                    File(
+                        stagingDirectory,
+                        "input.zip"
+                    )
+
+                copyUriWithLimit(
+                    sourceUri =
+                        sourceUri,
+                    destination =
+                        stagedArchive,
+                    maxBytes =
+                        MAX_ARCHIVE_BYTES
+                )
+
+                val validated =
+                    validateArchive(
+                        stagedArchive
+                    )
+
+                val restoredPathById =
+                    mutableMapOf<
+                        String,
+                        String
+                    >()
+
+                ZipFile(
+                    stagedArchive
+                ).use { zip ->
+                    validated.manifest
+                        .files
+                        .forEach {
+                                descriptor ->
+
+                            val zipEntry =
+                                zip.getEntry(
+                                    descriptor.archivePath
+                                )
+                                    ?: error(
+                                        "A referenced attachment is missing."
+                                    )
+
+                            val extension =
+                                descriptor
+                                    .archivePath
+                                    .substringAfterLast(
+                                        '.',
+                                        "bin"
+                                    )
+                                    .takeIf {
+                                        it.matches(
+                                            Regex(
+                                                "[A-Za-z0-9]{1,10}"
+                                            )
+                                        )
+                                    }
+                                    ?: "bin"
+
+                            val destination =
+                                File(
+                                    restoredFilesDirectory,
+                                    "${descriptor.id}.$extension"
+                                )
+
+                            zip.getInputStream(
+                                zipEntry
+                            ).use { input ->
+                                FileOutputStream(
+                                    destination
+                                ).use {
+                                    output ->
+
+                                    input.copyTo(
+                                        output
+                                    )
+
+                                    output.fd.sync()
+                                }
+                            }
+
+                            require(
+                                destination.length() ==
+                                    descriptor.byteSize
+                            ) {
+                                "Attachment size validation failed."
+                            }
+
+                            require(
+                                sha256(destination)
+                                    .equals(
+                                        descriptor.sha256,
+                                        ignoreCase = true
+                                    )
+                            ) {
+                                "Attachment checksum validation failed."
+                            }
+
+                            restoredPathById[
+                                descriptor.id
+                            ] =
+                                destination.absolutePath
+                        }
+                }
+
+                val journals =
+                    validated.manifest
+                        .journals
+                        .map {
+                            Journal(
+                                id = it.id,
+                                name = it.name,
+                                colorHex =
+                                    it.colorHex,
+                                createdAt =
+                                    it.createdAt
+                            )
+                        }
+
+                require(
+                    journals.isNotEmpty()
+                ) {
+                    "Backup contains no journals."
+                }
+
+                val journalIds =
+                    journals.map {
+                        it.id
+                    }.toSet()
+
+                require(
+                    journalIds.size ==
+                        journals.size
+                ) {
+                    "Duplicate journal IDs were found."
+                }
+
+                val seenEntryKeys =
+                    hashSetOf<String>()
+
+                val entries =
+                    validated.manifest
+                        .entries
+                        .map {
+                                dto ->
+
+                            require(
+                                dto.journalId in
+                                    journalIds
+                            ) {
+                                "Entry references an unknown journal."
+                            }
+
+                            val date =
+                                LocalDate.parse(
+                                    dto.date
+                                )
+
+                            val key =
+                                "${dto.journalId}|$date"
+
+                            require(
+                                seenEntryKeys.add(key)
+                            ) {
+                                "Duplicate entry date/journal pair."
+                            }
+
+                            val mood =
+                                runCatching {
+                                    Mood.valueOf(
+                                        dto.mood
+                                    )
+                                }.getOrElse {
+                                    error(
+                                        "Unsupported mood value."
+                                    )
+                                }
+
+                            val photoPath =
+                                dto.photoFileId
+                                    ?.let {
+                                        restoredPathById[it]
+                                            ?: error(
+                                                "Missing photo reference."
+                                            )
+                                    }
+
+                            val mediaPaths =
+                                dto.mediaFileIds
+                                    .map {
+                                        fileId ->
+                                        restoredPathById[
+                                            fileId
+                                        ] ?: error(
+                                            "Missing media reference."
+                                        )
+                                    }
+
+                            val audioPath =
+                                dto.audioFileId
+                                    ?.let {
+                                        restoredPathById[it]
+                                            ?: error(
+                                                "Missing audio reference."
+                                            )
+                                    }
+
+                            JournalEntry(
+                                date = date,
+                                journalId =
+                                    dto.journalId,
+                                content =
+                                    dto.content,
+                                mood = mood,
+                                photoUri =
+                                    photoPath,
+                                mediaUris =
+                                    mediaPaths,
+                                tags =
+                                    dto.tags,
+                                audioUri =
+                                    audioPath,
+                                isPinned =
+                                    dto.isPinned,
+                                createdAt =
+                                    dto.createdAt,
+                                updatedAt =
+                                    dto.updatedAt
+                            )
+                        }
+
+                val dao =
+                    database.journalDao()
+
+                database.withTransaction {
+                    dao.deleteAllEntriesForRestore()
+                    dao.deleteAllJournalsForRestore()
+
+                    dao.insertJournalsForRestore(
+                        journals
+                    )
+
+                    dao.insertEntriesForRestore(
+                        entries
+                    )
+
+                    check(
+                        dao.getJournalCountOnce() ==
+                            journals.size
+                    ) {
+                        "Journal verification failed."
+                    }
+
+                    check(
+                        dao.getTotalEntryCountOnce() ==
+                            entries.size
+                    ) {
+                        "Entry verification failed."
+                    }
+                }
+
+                databaseCommitted = true
+
+                BackupRestoreResult.Success(
+                    restoredJournals =
+                        journals.size,
+                    restoredEntries =
+                        entries.size
+                )
+            } catch (t: Throwable) {
+                if (!databaseCommitted) {
+                    runCatching {
+                        restoredFilesDirectory
+                            .deleteRecursively()
+                    }
+                }
+
+                BackupRestoreResult.Failure(
+                    reason =
+                        t.message
+                            ?: "Restore failed."
+                )
+            } finally {
+                runCatching {
+                    stagingDirectory
+                        .deleteRecursively()
+                }
+            }
+        }
+
+    private fun validateArchive(
+        archive: File
+    ): ValidatedBackup {
+        ZipFile(archive).use {
+            zip ->
+
+            val seenNames =
+                hashSetOf<String>()
+
+            var entryCount = 0
+            var expandedBytes = 0L
+
+            val enumeration =
+                zip.entries()
+
+            while (
+                enumeration.hasMoreElements()
+            ) {
+                val entry =
+                    enumeration.nextElement()
+
+                entryCount++
+
+                require(
+                    entryCount <=
+                        MAX_ZIP_ENTRIES
+                ) {
+                    "Too many archive entries."
+                }
+
+                val name =
+                    validateArchivePath(
+                        entry.name
+                    )
+
+                require(
+                    seenNames.add(name)
+                ) {
+                    "Duplicate archive entry."
+                }
+
+                if (entry.isDirectory) {
+                    continue
+                }
+
+                val size =
+                    entry.size
+
+                require(
+                    size >= 0L
+                ) {
+                    "Archive entry has an unknown size."
+                }
+
+                require(
+                    size <=
+                        MAX_SINGLE_FILE_BYTES
+                ) {
+                    "Archive entry is too large."
+                }
+
+                expandedBytes += size
+
+                require(
+                    expandedBytes <=
+                        MAX_EXPANDED_BYTES
+                ) {
+                    "Expanded archive is too large."
+                }
+
+                require(
+                    name ==
+                        "manifest.json" ||
+                    name.matches(
+                        Regex(
+                            """files/[0-9a-fA-F-]{36}\.[A-Za-z0-9]{1,10}"""
+                        )
+                    )
+                ) {
+                    "Unsupported archive path."
+                }
+            }
+
+            val manifestEntry =
+                zip.getEntry(
+                    "manifest.json"
+                )
+                    ?: error(
+                        "Backup manifest is missing."
+                    )
+
+            val json =
+                zip.getInputStream(
+                    manifestEntry
+                )
+                    .bufferedReader(
+                        Charsets.UTF_8
+                    )
+                    .use {
+                        it.readText()
+                    }
+
+            val manifest =
+                gson.fromJson(
+                    json,
+                    BackupManifest::class.java
+                )
+                    ?: error(
+                        "Backup manifest is invalid."
+                    )
+
+            require(
+                manifest.formatVersion ==
+                    FORMAT_VERSION
+            ) {
+                "Unsupported backup format version."
+            }
+
+            require(
+                manifest.appId ==
+                    APP_ID
+            ) {
+                "Backup belongs to another application."
+            }
+
+            val fileIds =
+                hashSetOf<String>()
+
+            val filePaths =
+                hashSetOf<String>()
+
+            manifest.files
+                .forEach {
+                    descriptor ->
+
+                    require(
+                        fileIds.add(
+                            descriptor.id
+                        )
+                    ) {
+                        "Duplicate backup file ID."
+                    }
+
+                    require(
+                        filePaths.add(
+                            descriptor.archivePath
+                        )
+                    ) {
+                        "Duplicate backup file path."
+                    }
+
+                    require(
+                        descriptor.archivePath
+                            in seenNames
+                    ) {
+                        "Backup references a missing file."
+                    }
+
+                    require(
+                        descriptor.byteSize in
+                            0..MAX_SINGLE_FILE_BYTES
+                    ) {
+                        "Invalid backup file size."
+                    }
+
+                    require(
+                        descriptor.sha256
+                            .matches(
+                                Regex(
+                                    "[0-9a-fA-F]{64}"
+                                )
+                            )
+                    ) {
+                        "Invalid backup checksum."
+                    }
+                }
+
+            return ValidatedBackup(
+                manifest = manifest
+            )
+        }
+    }
+
+    internal fun validateArchivePath(
+        rawPath: String
+    ): String {
+        require(
+            rawPath.isNotBlank()
+        ) {
+            "Blank archive path."
+        }
+
+        require(
+            !rawPath.contains('\\')
+        ) {
+            "Backslash paths are rejected."
+        }
+
+        require(
+            !rawPath.startsWith("/")
+        ) {
+            "Absolute archive paths are rejected."
+        }
+
+        require(
+            !Regex(
+                "^[A-Za-z]:"
+            ).containsMatchIn(
+                rawPath
+            )
+        ) {
+            "Drive-qualified paths are rejected."
+        }
+
+        val segments =
+            rawPath.split('/')
+
+        require(
+            segments.none {
+                it == "." ||
+                it == ".." ||
+                it.isBlank()
+            }
+        ) {
+            "Path traversal is rejected."
+        }
+
+        return rawPath
+    }
+
+    private fun copyUriWithLimit(
+        sourceUri: Uri,
+        destination: File,
+        maxBytes: Long
+    ) {
+        val input =
+            context.contentResolver
+                .openInputStream(
+                    sourceUri
+                )
+                ?: error(
+                    "Selected backup could not be opened."
+                )
+
+        input.use { source ->
+            FileOutputStream(
+                destination
+            ).use { output ->
+                val buffer =
+                    ByteArray(
+                        DEFAULT_BUFFER_SIZE
+                    )
+
+                var total = 0L
+
+                while (true) {
+                    val read =
+                        source.read(buffer)
+
+                    if (read < 0) {
+                        break
+                    }
+
+                    total += read
+
+                    require(
+                        total <=
+                            maxBytes
+                    ) {
+                        "Backup archive exceeds the supported size."
+                    }
+
+                    output.write(
+                        buffer,
+                        0,
+                        read
+                    )
+                }
+
+                output.fd.sync()
+            }
+        }
+    }
+
+    private fun sha256(
+        file: File
+    ): String {
+        val digest =
+            MessageDigest.getInstance(
+                "SHA-256"
+            )
+
+        BufferedInputStream(
+            FileInputStream(file)
+        ).use { input ->
+            val buffer =
+                ByteArray(
+                    DEFAULT_BUFFER_SIZE
+                )
+
+            while (true) {
+                val read =
+                    input.read(buffer)
+
+                if (read < 0) {
+                    break
+                }
+
+                digest.update(
+                    buffer,
+                    0,
+                    read
+                )
+            }
+        }
+
+        return digest
+            .digest()
+            .joinToString("") {
+                byte ->
+                "%02x".format(byte)
+            }
+    }
+}
+
+private data class BackupSnapshot(
+    val journals: List<Journal>,
+    val entries: List<JournalEntry>
+)
+
+data class BackupManifest(
+    val formatVersion: Int,
+    val appId: String,
+    val databaseSchemaVersion: Int,
+    val createdAtEpochMs: Long,
+    val journals: List<BackupJournalDto>,
+    val entries: List<BackupEntryDto>,
+    val files: List<BackupFileDto>
+)
+
+data class BackupJournalDto(
+    val id: String,
+    val name: String,
+    val colorHex: String?,
+    val createdAt: Long
+)
+
+data class BackupEntryDto(
+    val date: String,
+    val journalId: String,
+    val content: String,
+    val mood: String,
+    val photoFileId: String?,
+    val mediaFileIds: List<String>,
+    val tags: List<String>,
+    val audioFileId: String?,
+    val isPinned: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+data class BackupFileDto(
+    val id: String,
+    val archivePath: String,
+    val kind: String,
+    val byteSize: Long,
+    val sha256: String
+)
+
+enum class BackupFileKind {
+    MEDIA,
+    AUDIO
+}
+
+private data class ValidatedBackup(
+    val manifest: BackupManifest
+)
+
+sealed interface BackupExportResult {
+    data class Success(
+        val uri: Uri,
+        val file: File
+    ) : BackupExportResult
+
+    data class Failure(
+        val reason: String
+    ) : BackupExportResult
+}
+
+sealed interface BackupRestoreResult {
+    data class Success(
+        val restoredJournals: Int,
+        val restoredEntries: Int
+    ) : BackupRestoreResult
+
+    data class Failure(
+        val reason: String
+    ) : BackupRestoreResult
+}
+```
+
+IMPORTANT PRODUCTION CORRECTION:
+The above current-format restore makes the destructive logical replacement inside one Room
+transaction and never overwrites SQLite files. That gives transactional DB rollback.
+
+However, after DB commit succeeds, the newly restored files must NOT be deleted. Therefore:
+- on success, keep `restoredFilesDirectory`
+- cleanup only the old files that are no longer referenced, after obtaining the final reference set.
+
+If post-commit cleanup fails, report restore success with a storage-cleanup warning; do not
+roll back the diary merely because old orphan cleanup failed.
+
+LEGACY BACKUP SUPPORT
+The current released/old source created raw `db/journal_database*` archives. Existing user
+backups must not be abandoned silently.
+
+CREATE:
+`backup/LegacyBackupImporter.kt`
+
+Required implementation contract:
+1. Apply the same compressed/expanded byte and path checks.
+2. Extract ONLY into a private staging directory.
+3. Never place extracted DB/WAL/SHM in `context.getDatabasePath(...)`.
+4. Open the staged DB separately using Android SQLiteDatabase read-only APIs.
+5. Run:
+   `PRAGMA quick_check`
+   and require result `ok`.
+6. Inspect `PRAGMA table_info(journal_entries)` and `PRAGMA table_info(journals)`.
+7. Accept only known legacy schema shapes.
+8. Convert rows to current DTOs.
+9. Match staged `media/`, `photos/`, `audio/` files by basename.
+10. Copy them into NEW UUID managed destinations.
+11. Feed converted data into the same one-transaction logical restore.
+12. Any error leaves the current diary untouched.
+
+Do NOT reuse the old direct extraction code.
+
+Until that importer has automated fixtures for v1/v2/v3/v4 backups:
+- keep legacy restore labeled BETA in pre-release builds, or
+- disable legacy restore rather than risk data loss.
+
+BACKUP UI
+Replace synchronous:
+`val uri = viewModel.exportBackup(context)`
+
+with coroutine state:
+
+```kotlin
+scope.launch {
+    isExportingBackup = true
+
+    when (
+        val result =
+            viewModel.exportBackup()
+    ) {
+        is BackupExportResult.Success -> {
+            shareBackup(
+                context,
+                result.uri
+            )
+        }
+
+        is BackupExportResult.Failure -> {
+            Toast.makeText(
+                context,
+                result.reason,
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    isExportingBackup = false
+}
+```
+
+Before sharing:
+show a one-time dialog:
+“This backup can contain journal text, photos, videos, moods, tags and voice notes. The app
+or cloud service you choose will control the copy after you share it.”
+
+Do not call ZIP “encrypted” unless encrypted backup is separately implemented.
+
