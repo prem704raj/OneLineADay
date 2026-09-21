@@ -53,10 +53,14 @@ fun PremiumDialog(
         }
     }
 
-    val monthlyPrice = BillingManager.getFormattedPrice(BillingManager.PRODUCT_MONTHLY)
-        ?: if (isLoading) "..." else "$1.99"
-    val lifetimePrice = BillingManager.getFormattedPrice(BillingManager.PRODUCT_LIFETIME)
-        ?: if (isLoading) "..." else "$9.99"
+    val monthlyRawPrice = BillingManager.getFormattedPrice(BillingManager.PRODUCT_MONTHLY)
+    val lifetimeRawPrice = BillingManager.getFormattedPrice(BillingManager.PRODUCT_LIFETIME)
+
+    val monthlyAvailable = monthlyRawPrice != null
+    val lifetimeAvailable = lifetimeRawPrice != null
+
+    val monthlyPrice = monthlyRawPrice ?: if (isLoading) "..." else "Unavailable"
+    val lifetimePrice = lifetimeRawPrice ?: if (isLoading) "..." else "Unavailable"
 
     val premiumGradient = Brush.linearGradient(
         colors = listOf(
@@ -209,6 +213,7 @@ fun PremiumDialog(
                     price = monthlyPrice,
                     period = "/ month",
                     isSelected = selectedPlan == "monthly",
+                    enabled = monthlyAvailable,
                     onClick = { selectedPlan = "monthly" }
                 )
 
@@ -220,17 +225,27 @@ fun PremiumDialog(
                     period = "one-time",
                     isSelected = selectedPlan == "lifetime",
                     isPopular = true,
+                    enabled = lifetimeAvailable,
                     onClick = { selectedPlan = "lifetime" }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                val isCurrentPlanAvailable = (selectedPlan == "monthly" && monthlyAvailable) ||
+                    (selectedPlan == "lifetime" && lifetimeAvailable)
+
                 Button(
                     onClick = {
                         val activity = context as? Activity
                         if (selectedPlan != null && activity != null) {
-                            val productId = if (selectedPlan == "monthly") BillingManager.PRODUCT_MONTHLY else BillingManager.PRODUCT_LIFETIME
                             val isSub = selectedPlan == "monthly"
+                            val productId = if (isSub) BillingManager.PRODUCT_MONTHLY else BillingManager.PRODUCT_LIFETIME
+                            val isAvailable = if (isSub) monthlyAvailable else lifetimeAvailable
+
+                            if (!isAvailable) {
+                                Toast.makeText(context, "This plan is currently unavailable.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
 
                             BillingManager.launchBillingFlow(
                                 activity = activity,
@@ -251,7 +266,7 @@ fun PremiumDialog(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(16.dp),
-                    enabled = !isLoading,
+                    enabled = !isLoading && isCurrentPlanAvailable,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFA500),
                         disabledContainerColor = Color(0xFFFFA500).copy(alpha = 0.4f)
@@ -323,10 +338,13 @@ private fun PremiumPlanCard(
     period: String,
     isSelected: Boolean,
     isPopular: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) Color(0xFFFFA500) else MaterialTheme.colorScheme.outlineVariant
-    val bgColor = if (isSelected) Color(0xFFFFA500).copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
+    val borderColor = if (!enabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        else if (isSelected) Color(0xFFFFA500) else MaterialTheme.colorScheme.outlineVariant
+    val bgColor = if (!enabled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        else if (isSelected) Color(0xFFFFA500).copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
 
     Box(
         modifier = Modifier
@@ -334,11 +352,11 @@ private fun PremiumPlanCard(
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
+                width = if (isSelected && enabled) 2.dp else 1.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(16.dp)
             )
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(16.dp)
     ) {
         Row(

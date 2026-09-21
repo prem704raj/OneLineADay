@@ -112,6 +112,49 @@ class MediaStorageManager(
             runCatching { File(path).delete() }.getOrDefault(false)
         }
 
+    suspend fun cleanupOrphans(
+        referencedPaths: Set<String>
+    ): Int =
+        withContext(
+            Dispatchers.IO
+        ) {
+            if (!mediaRoot.exists()) {
+                return@withContext 0
+            }
+
+            var deleted = 0
+
+            mediaRoot
+                .walkTopDown()
+                .filter {
+                    it.isFile
+                }
+                .forEach { file ->
+
+                    val path =
+                        runCatching {
+                            file.canonicalPath
+                        }.getOrNull()
+                            ?: return@forEach
+
+                    if (
+                        path !in
+                        referencedPaths &&
+                        isManagedPath(path)
+                    ) {
+                        if (
+                            runCatching {
+                                file.delete()
+                            }.getOrDefault(false)
+                        ) {
+                            deleted++
+                        }
+                    }
+                }
+
+            deleted
+        }
+
     private fun queryDisplayName(uri: Uri): String? =
         context.contentResolver
             .query(

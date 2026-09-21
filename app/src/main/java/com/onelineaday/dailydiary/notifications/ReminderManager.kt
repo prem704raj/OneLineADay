@@ -1,5 +1,6 @@
 package com.onelineaday.dailydiary.notifications
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -10,153 +11,166 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.onelineaday.dailydiary.MainActivity
 import com.onelineaday.dailydiary.R
-import java.util.Calendar
-import android.app.AlarmManager
+import java.time.ZonedDateTime
 
-/**
- * Notification manager for daily reminders
- */
-class ReminderManager(private val context: Context) {
-    
+class ReminderManager(
+    private val context: Context
+) {
+
     companion object {
         const val CHANNEL_ID = "daily_reminder"
-        const val CHANNEL_NAME = "Daily Reminder"
         const val NOTIFICATION_ID = 1001
         const val REQUEST_CODE = 2001
     }
-    
+
     init {
         createNotificationChannel()
     }
-    
+
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                importance
-            ).apply {
-                description = "Daily reminder to write your one line"
-                enableVibration(true)
-                setShowBadge(true)
-            }
-            
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return
         }
+
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            context.getString(R.string.reminder_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = context.getString(R.string.reminder_channel_description)
+            enableVibration(true)
+            setShowBadge(true)
+        }
+
+        manager.createNotificationChannel(channel)
     }
-    
-    fun scheduleDailyReminder(hour: Int = 20, minute: Int = 0) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        
-        val intent = Intent(context, ReminderReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // Set time for 8 PM by default
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = System.currentTimeMillis()
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            
-            // If time already passed today, schedule for tomorrow
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
+
+    fun scheduleDailyReminder(
+        hour: Int = 20,
+        minute: Int = 0
+    ) {
+        require(hour in 0..23)
+        require(minute in 0..59)
+
+        val now = ZonedDateTime.now()
+        var next = now
+            .withHour(hour)
+            .withMinute(minute)
+            .withSecond(0)
+            .withNano(0)
+
+        if (!next.isAfter(now)) {
+            next = next.plusDays(1)
         }
-        
-        // Schedule repeating alarm
-        alarmManager.setRepeating(
+
+        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        manager.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            AlarmManager.INTERVAL_DAY,
-            pendingIntent
+            next.toInstant().toEpochMilli(),
+            reminderPendingIntent()
         )
     }
-    
+
     fun cancelReminder() {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        manager.cancel(reminderPendingIntent())
+    }
+
+    private fun reminderPendingIntent(): PendingIntent {
         val intent = Intent(context, ReminderReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
+        return PendingIntent.getBroadcast(
             context,
             REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.cancel(pendingIntent)
     }
 }
 
-/**
- * Broadcast receiver for handling reminder alarms
- */
 class ReminderReceiver : BroadcastReceiver() {
-    
-    override fun onReceive(context: Context, intent: Intent) {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
         showNotification(context)
+
+        val prefs = context.getSharedPreferences(
+            "settings",
+            Context.MODE_PRIVATE
+        )
+
+        if (prefs.getBoolean("reminders_enabled", false)) {
+            ReminderManager(context).scheduleDailyReminder(
+                hour = prefs.getInt("reminder_hour", 20),
+                minute = prefs.getInt("reminder_minute", 0)
+            )
+        }
     }
-    
+
     private fun showNotification(context: Context) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        // Intent to open app when notification is tapped
-        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        
-        val pendingIntent = PendingIntent.getActivity(
+
+        val contentIntent = PendingIntent.getActivity(
             context,
             0,
-            openAppIntent,
+            openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
-        // Motivational messages
+
         val messages = listOf(
-            "✨ How was your day? Capture it in one line!",
-            "📝 Just 10 seconds to preserve today's memory",
-            "🌟 Your future self will thank you for writing today",
-            "💭 What's the one thing you want to remember about today?",
-            "🔥 Keep your streak alive! Write your daily line",
-            "📖 Every great story starts with one line",
-            "🎯 10 seconds. 1 sentence. Infinite memories."
+            R.string.reminder_message_1,
+            R.string.reminder_message_2,
+            R.string.reminder_message_3,
+            R.string.reminder_message_4
         )
-        
-        val notification = NotificationCompat.Builder(context, ReminderManager.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_edit)
-            .setContentTitle("One Line A Day")
-            .setContentText(messages.random())
+
+        val message = context.getString(messages.random())
+
+        val notification = NotificationCompat.Builder(
+            context,
+            ReminderManager.CHANNEL_ID
+        )
+            .setSmallIcon(R.drawable.ic_stat_journal)
+            .setContentTitle(context.getString(R.string.app_name))
+            .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(contentIntent)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .build()
-        
-        notificationManager.notify(ReminderManager.NOTIFICATION_ID, notification)
+
+        manager.notify(ReminderManager.NOTIFICATION_ID, notification)
     }
 }
 
-/**
- * Boot receiver to reschedule alarms after device restart
- */
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_TIMEZONE_CHANGED,
-            Intent.ACTION_TIME_CHANGED -> {
-                // Check if reminders were enabled and reschedule
-                val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                val prefs = context.getSharedPreferences(
+                    "settings",
+                    Context.MODE_PRIVATE
+                )
+
                 if (prefs.getBoolean("reminders_enabled", false)) {
-                    val hour = prefs.getInt("reminder_hour", 20)
-                    val minute = prefs.getInt("reminder_minute", 0)
-                    ReminderManager(context).scheduleDailyReminder(hour, minute)
+                    ReminderManager(context).scheduleDailyReminder(
+                        hour = prefs.getInt("reminder_hour", 20),
+                        minute = prefs.getInt("reminder_minute", 0)
+                    )
                 }
             }
         }

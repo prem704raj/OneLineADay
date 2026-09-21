@@ -40,7 +40,8 @@ fun NativeAdCard(
     adUnitId: String = "ca-app-pub-8204679574020840/7695158775"
 ) {
     val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
-    if (isPremium) return
+    val canRequestAds by AdsConsentManager.canRequestAds.collectAsState()
+    if (isPremium || !canRequestAds) return
     
     val context = LocalContext.current
     var nativeAd by remember { mutableStateOf<NativeAd?>(null) }

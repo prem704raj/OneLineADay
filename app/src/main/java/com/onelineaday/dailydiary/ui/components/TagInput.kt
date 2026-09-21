@@ -17,6 +17,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TagInput(
@@ -40,7 +43,7 @@ fun TagInput(
                     tagText = it 
                 }
             },
-            placeholder = { Text("Add tags (comma or space separated)") },
+            placeholder = { Text(stringResource(R.string.tags_placeholder)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -77,7 +80,7 @@ fun TagInput(
                         Spacer(modifier = Modifier.width(4.dp))
                         Box(
                             modifier = Modifier
-                                .sizeIn(minWidth = 32.dp, minHeight = 32.dp)
+                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                 .clip(CircleShape)
                                 .clickable {
                                     onTagsChanged(tags.filter { it != tag })
@@ -86,7 +89,7 @@ fun TagInput(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove tag $tag",
+                                contentDescription = stringResource(R.string.remove_tag, tag),
                                 modifier = Modifier.size(16.dp)
                             )
                         }

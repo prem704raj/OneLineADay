@@ -35,8 +35,14 @@ object InterstitialAdManager {
      * Pre-loads an interstitial ad so it's ready when needed.
      */
     fun loadAd(context: Context) {
-        if (com.onelineaday.dailydiary.PremiumManager.isPremium.value) return
-        if (interstitialAd != null || isLoading) return
+        if (
+            com.onelineaday.dailydiary.PremiumManager.isPremium.value ||
+            !AdsConsentManager.canRequestAds.value ||
+            interstitialAd != null ||
+            isLoading
+        ) {
+            return
+        }
 
         isLoading = true
         val adRequest = AdRequest.Builder().build()
@@ -66,7 +72,10 @@ object InterstitialAdManager {
      * [onAdDismissed] is called when the ad is closed (or if it wasn't shown).
      */
     fun onEntrySaved(activity: Activity, onAdDismissed: () -> Unit = {}) {
-        if (com.onelineaday.dailydiary.PremiumManager.isPremium.value) {
+        if (
+            com.onelineaday.dailydiary.PremiumManager.isPremium.value ||
+            !AdsConsentManager.canRequestAds.value
+        ) {
             onAdDismissed()
             return
         }

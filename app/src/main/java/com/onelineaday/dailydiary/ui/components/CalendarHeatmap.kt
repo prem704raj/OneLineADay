@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -28,7 +30,7 @@ fun CalendarHeatmap(
     entriesDates: List<LocalDate>,
     modifier: Modifier = Modifier
 ) {
-    val today = remember { LocalDate.now() }
+    val today = LocalDate.now()
     val startDate = remember(today) { today.minusWeeks(15).with(DayOfWeek.MONDAY) }
     
     val dateMap = remember(entriesDates) {
@@ -47,6 +49,7 @@ fun CalendarHeatmap(
     val level1Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
     val level2Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
     val level3Color = MaterialTheme.colorScheme.primary
+    val heatmapDescription = stringResource(R.string.stats_heatmap_description, activeDaysCount)
     
     Column(
         modifier = modifier
@@ -56,11 +59,11 @@ fun CalendarHeatmap(
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
             .padding(16.dp)
             .semantics {
-                contentDescription = "Journal activity heatmap: $activeDaysCount active writing days in the last 15 weeks."
+                contentDescription = heatmapDescription
             }
     ) {
         Text(
-            text = "Contribution Graph",
+            text = stringResource(R.string.stats_activity_graph),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -106,7 +109,7 @@ fun CalendarHeatmap(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Month label placeholder (simplified)
-                        val showMonth = week.firstOrNull()?.dayOfMonth ?: 100 <= 7
+                        val showMonth = (week.firstOrNull()?.dayOfMonth ?: 100) <= 7
                         if (showMonth && week.isNotEmpty()) {
                             Text(
                                 text = week.first().month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),

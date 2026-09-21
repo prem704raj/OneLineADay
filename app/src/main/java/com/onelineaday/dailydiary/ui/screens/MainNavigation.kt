@@ -24,36 +24,40 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import com.onelineaday.dailydiary.R
+
 sealed class Screen(
     val route: String,
-    val title: String,
+    @StringRes val titleRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
     data object Home : Screen(
         route = "home",
-        title = "Today",
+        titleRes = R.string.today,
         selectedIcon = Icons.Filled.Edit,
         unselectedIcon = Icons.Outlined.Edit
     )
     
     data object Timeline : Screen(
         route = "timeline",
-        title = "Timeline",
+        titleRes = R.string.timeline,
         selectedIcon = Icons.Filled.ViewTimeline,
         unselectedIcon = Icons.Outlined.ViewTimeline
     )
     
     data object Stats : Screen(
         route = "stats",
-        title = "Journey",
+        titleRes = R.string.stats,
         selectedIcon = Icons.Filled.Insights,
         unselectedIcon = Icons.Outlined.Insights
     )
     
     data object Settings : Screen(
         route = "settings",
-        title = "Settings",
+        titleRes = R.string.settings,
         selectedIcon = Icons.Filled.Settings,
         unselectedIcon = Icons.Outlined.Settings
     )
@@ -131,29 +135,30 @@ fun MainNavigation(
                         it.route == screen.route 
                     } == true
                     
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                        val title = stringResource(screen.titleRes)
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                contentDescription = screen.title
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = screen.title,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        },
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
+                                    contentDescription = title
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,

@@ -18,6 +18,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.onelineaday.dailydiary.ads.AdsConsentManager
 import com.onelineaday.dailydiary.billing.BillingManager
 import com.onelineaday.dailydiary.security.AppLockManager
 import com.onelineaday.dailydiary.ui.screens.LockScreen
@@ -74,6 +75,7 @@ class MainActivity : FragmentActivity() {
 
         PremiumManager.init(this)
         BillingManager.init(this)
+        AdsConsentManager.gatherConsent(this)
 
         enableEdgeToEdge()
 

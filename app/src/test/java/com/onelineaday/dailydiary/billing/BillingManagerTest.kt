@@ -1,52 +1,89 @@
 package com.onelineaday.dailydiary.billing
 
-import com.onelineaday.dailydiary.PremiumManager
+import com.android.billingclient.api.Purchase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BillingManagerTest {
 
     @Test
-    fun `recognized products contains monthly and lifetime only`() {
-        assertEquals(2, BillingManager.RECOGNIZED_PRODUCTS.size)
+    fun recognizedProducts_containExactIds() {
         assertTrue(BillingManager.RECOGNIZED_PRODUCTS.contains("premium_monthly"))
         assertTrue(BillingManager.RECOGNIZED_PRODUCTS.contains("premium_lifetime"))
+        assertEquals(2, BillingManager.RECOGNIZED_PRODUCTS.size)
     }
 
     @Test
-    fun `product constants match expected Play Console product IDs`() {
-        assertEquals("premium_monthly", BillingManager.PRODUCT_MONTHLY)
-        assertEquals("premium_lifetime", BillingManager.PRODUCT_LIFETIME)
+    fun unrecognizedProduct_rejected() {
+        assertFalse(BillingManager.RECOGNIZED_PRODUCTS.contains("fake_plan"))
+        assertFalse(BillingManager.RECOGNIZED_PRODUCTS.contains("premium_yearly"))
+        assertFalse(BillingManager.RECOGNIZED_PRODUCTS.contains(""))
     }
 
     @Test
-    fun `arbitrary and malicious product IDs are not recognized`() {
-        val invalidProductIds = listOf(
-            "unrelated_sku",
-            "free_upgrade",
-            "admin_unlock",
-            "",
-            "premium_monthly_hack",
-            "premium_yearly"
+    fun getFormattedPrice_returnsNullWhenNotLoaded() {
+        assertNull(BillingManager.getFormattedPrice(BillingManager.PRODUCT_MONTHLY))
+        assertNull(BillingManager.getFormattedPrice(BillingManager.PRODUCT_LIFETIME))
+        assertNull(BillingManager.getFormattedPrice("unrecognized"))
+    }
+
+    @Test
+    fun isEntitledPurchase_purchasedAndRecognized_qualifies() {
+        val qualifiesMonthly = BillingManager.isEntitledPurchase(
+            productIds = listOf("premium_monthly"),
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            suspended = false
         )
+        assertTrue(qualifiesMonthly)
 
-        for (id in invalidProductIds) {
-            assertFalse(
-                "Product ID $id should not be recognized",
-                BillingManager.RECOGNIZED_PRODUCTS.contains(id)
-            )
-        }
+        val qualifiesLifetime = BillingManager.isEntitledPurchase(
+            productIds = listOf("premium_lifetime"),
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            suspended = false
+        )
+        assertTrue(qualifiesLifetime)
     }
 
     @Test
-    fun `initial product map is empty`() {
-        assertTrue(BillingManager.products.value.isEmpty())
+    fun isEntitledPurchase_pendingDoesNotQualify() {
+        val qualifiesPending = BillingManager.isEntitledPurchase(
+            productIds = listOf("premium_monthly"),
+            purchaseState = Purchase.PurchaseState.PENDING,
+            suspended = false
+        )
+        assertFalse(qualifiesPending)
     }
 
     @Test
-    fun `formatted price returns null for unknown product`() {
-        assertEquals(null, BillingManager.getFormattedPrice("non_existent_product"))
+    fun isEntitledPurchase_unspecifiedStateDoesNotQualify() {
+        val qualifiesUnspecified = BillingManager.isEntitledPurchase(
+            productIds = listOf("premium_monthly"),
+            purchaseState = Purchase.PurchaseState.UNSPECIFIED_STATE,
+            suspended = false
+        )
+        assertFalse(qualifiesUnspecified)
+    }
+
+    @Test
+    fun isEntitledPurchase_suspendedSubscriptionDoesNotQualify() {
+        val qualifiesSuspended = BillingManager.isEntitledPurchase(
+            productIds = listOf("premium_monthly"),
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            suspended = true
+        )
+        assertFalse(qualifiesSuspended)
+    }
+
+    @Test
+    fun isEntitledPurchase_unrecognizedProductDoesNotQualify() {
+        val qualifiesUnknown = BillingManager.isEntitledPurchase(
+            productIds = listOf("unknown_tier"),
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            suspended = false
+        )
+        assertFalse(qualifiesUnknown)
     }
 }

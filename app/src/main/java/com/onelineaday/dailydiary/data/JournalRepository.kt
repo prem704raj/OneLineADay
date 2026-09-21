@@ -20,6 +20,9 @@ class JournalRepository(private val journalDao: JournalDao) {
     
     suspend fun getJournalById(id: String): Journal? = journalDao.getJournalById(id)
 
+    suspend fun getAllEntriesForBackup(): List<JournalEntry> =
+        journalDao.getAllEntriesForBackup()
+
     fun getAllEntries(journalId: String = "default"): Flow<List<JournalEntry>> = journalDao.getAllEntries(journalId)
     
     fun getTotalEntryCount(journalId: String = "default"): Flow<Int> = journalDao.getTotalEntryCount(journalId)
@@ -74,9 +77,7 @@ class JournalRepository(private val journalDao: JournalDao) {
      * Calculate current streak - consecutive days with entries (pure function, no mutation)
      */
     fun calculateStreak(
-        entries: List<JournalEntry>, 
-        freezesAvailable: Int = 0,
-        onFreezesConsumed: (Int) -> Unit = {}
+        entries: List<JournalEntry>
     ): Int {
         return calculateCurrentStreak(entries, LocalDate.now())
     }

@@ -5,7 +5,6 @@ import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import com.android.billingclient.api.*
-import com.onelineaday.dailydiary.BuildConfig
 import com.onelineaday.dailydiary.PremiumManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -182,72 +181,62 @@ object BillingManager : PurchasesUpdatedListener {
 
     fun getFormattedPrice(productId: String): String? {
         val details = _products.value[productId] ?: return null
-        return if (details.productType == BillingClient.ProductType.SUBS) {
-            details.subscriptionOfferDetails?.firstOrNull()
-                ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
-        } else {
-            details.oneTimePurchaseOfferDetails?.formattedPrice
+        return when (details.productType) {
+            BillingClient.ProductType.SUBS ->
+                details.subscriptionOfferDetails?.firstOrNull()
+                    ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
+            BillingClient.ProductType.INAPP ->
+                details.oneTimePurchaseOfferDetails?.formattedPrice
+            else -> null
         }
     }
+
+    private fun getEligibleOfferToken(details: ProductDetails): String? =
+        when (details.productType) {
+            BillingClient.ProductType.SUBS ->
+                details.subscriptionOfferDetails?.firstOrNull { it.offerToken.isNotBlank() }?.offerToken
+            else -> null
+        }
 
     fun launchBillingFlow(
         activity: Activity,
         productId: String,
-        isSubscription: Boolean,
+        isSubscription: Boolean = productId == PRODUCT_MONTHLY,
         onSuccess: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
         if (productId !in RECOGNIZED_PRODUCTS) {
-            val msg = "Attempted to launch billing flow for unrecognized product: $productId"
+            val msg = "Unknown Premium product: $productId"
             Log.e(TAG, msg)
             if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
             return
         }
 
         val client = billingClient
-        val productDetails = _products.value[productId]
-
-        // Fallback in DEBUG mode if Play Console products have not propagated or testing locally
-        if (productDetails == null) {
-            if (BuildConfig.DEBUG) {
-                Log.w(TAG, "Product '$productId' not returned by Google Play in DEBUG mode. Simulating purchase for testing.")
-                appContext?.let { ctx ->
-                    PremiumManager.setPremium(ctx, true, testMode = true)
-                }
-                Toast.makeText(
-                    activity,
-                    "DEBUG TEST MODE: Simulated purchase successful! Premium activated.",
-                    Toast.LENGTH_LONG
-                ).show()
-                onSuccess?.invoke()
-                return
-            }
-
-            val msg = "Product '$productId' is not ready in Google Play. Please ensure it is active in Play Console."
-            Log.w(TAG, msg)
-            if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
-            refreshProducts()
-            return
-        }
-
         if (client == null || !client.isReady) {
-            val msg = "Google Play Billing service is connecting. Please try again."
+            val msg = "Google Play Billing is connecting. Please try again."
             Log.w(TAG, msg)
             if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
             connect()
             return
         }
 
-        val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
-            .setProductDetails(productDetails)
+        val details = _products.value[productId]
+        if (details == null) {
+            refreshProducts()
+            val msg = "This Premium plan is not available from Google Play for this account."
+            Log.w(TAG, msg)
+            if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        if (isSubscription) {
-            // Find the best active base plan offer token
-            val offerToken = productDetails.subscriptionOfferDetails
-                ?.firstOrNull { it.offerToken.isNotEmpty() }
-                ?.offerToken
-            if (offerToken.isNullOrEmpty()) {
-                val msg = "No active subscription offer or base plan found for '$productId' in Google Play."
+        val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
+            .setProductDetails(details)
+
+        if (details.productType == BillingClient.ProductType.SUBS) {
+            val offerToken = getEligibleOfferToken(details)
+            if (offerToken.isNullOrBlank()) {
+                val msg = "No eligible purchase option is available for this Premium plan."
                 Log.e(TAG, msg)
                 if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
                 return
@@ -255,17 +244,33 @@ object BillingManager : PurchasesUpdatedListener {
             productDetailsParamsBuilder.setOfferToken(offerToken)
         }
 
-        val billingFlowParams = BillingFlowParams.newBuilder()
+        val flowParams = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productDetailsParamsBuilder.build()))
             .build()
 
-        val billingResult = client.launchBillingFlow(activity, billingFlowParams)
-        if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            val msg = friendlyBillingError(billingResult)
+        val result = client.launchBillingFlow(activity, flowParams)
+        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+            val msg = friendlyBillingError(result)
             Log.e(TAG, "Failed to launch billing flow: $msg")
             if (onError != null) onError(msg) else Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
         }
     }
+
+    internal fun isEntitledPurchase(
+        productIds: List<String>,
+        purchaseState: Int,
+        suspended: Boolean = false
+    ): Boolean =
+        productIds.any { it in RECOGNIZED_PRODUCTS } &&
+            purchaseState == Purchase.PurchaseState.PURCHASED &&
+            !suspended
+
+    private fun Purchase.isActivePremiumPurchase(): Boolean =
+        isEntitledPurchase(
+            productIds = products,
+            purchaseState = purchaseState,
+            suspended = runCatching { isSuspended }.getOrDefault(false)
+        )
 
     fun checkPurchases(onComplete: ((Boolean) -> Unit)? = null) {
         val client = billingClient
@@ -300,14 +305,15 @@ object BillingManager : PurchasesUpdatedListener {
             }
         }
 
-        // Check Subscriptions
-        client.queryPurchasesAsync(
-            QueryPurchasesParams.newBuilder()
-                .setProductType(BillingClient.ProductType.SUBS)
-                .build()
-        ) { billingResult, purchases ->
+        // Check Subscriptions with suspended subscriptions included
+        val subParams = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.SUBS)
+            .includeSuspendedSubscriptions(true)
+            .build()
+
+        client.queryPurchasesAsync(subParams) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED && it.products.any { p -> p in RECOGNIZED_PRODUCTS } }) {
+                if (purchases.any { it.isActivePremiumPurchase() }) {
                     foundActivePurchase.set(true)
                 }
                 handlePurchases(purchases)
@@ -318,13 +324,13 @@ object BillingManager : PurchasesUpdatedListener {
         }
 
         // Check One-Time Purchases
-        client.queryPurchasesAsync(
-            QueryPurchasesParams.newBuilder()
-                .setProductType(BillingClient.ProductType.INAPP)
-                .build()
-        ) { billingResult, purchases ->
+        val inappParams = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+
+        client.queryPurchasesAsync(inappParams) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED && it.products.any { p -> p in RECOGNIZED_PRODUCTS } }) {
+                if (purchases.any { it.isActivePremiumPurchase() }) {
                     foundActivePurchase.set(true)
                 }
                 handlePurchases(purchases)
@@ -357,8 +363,7 @@ object BillingManager : PurchasesUpdatedListener {
     private fun handlePurchases(purchases: List<Purchase>) {
         val client = billingClient ?: return
         for (purchase in purchases) {
-            val hasRecognizedProduct = purchase.products.any { it in RECOGNIZED_PRODUCTS }
-            if (hasRecognizedProduct && purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+            if (purchase.isActivePremiumPurchase()) {
                 appContext?.let { ctx ->
                     if (!PremiumManager.isPremium.value) {
                         Log.d(TAG, "Valid purchase confirmed. Granting premium.")

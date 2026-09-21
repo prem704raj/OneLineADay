@@ -22,8 +22,8 @@ object ShareImageHelper {
     suspend fun shareEntryAsImage(context: Context, entry: JournalEntry) = withContext(Dispatchers.IO) {
         try {
             val bitmap = generateEntryBitmap(context, entry)
-            val cachePath = File(context.cacheDir, "images").apply { mkdirs() }
-            val file = File(cachePath, "shared_entry_${System.currentTimeMillis()}.png")
+            val cachePath = File(context.cacheDir, "journal_shares").apply { mkdirs() }
+            val file = File(cachePath, "entry_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
@@ -55,8 +55,8 @@ object ShareImageHelper {
     
     fun shareBitmap(context: Context, bitmap: Bitmap) {
         try {
-            val cachePath = File(context.cacheDir, "images").apply { mkdirs() }
-            val file = File(cachePath, "shared_entry_${System.currentTimeMillis()}.png")
+            val cachePath = File(context.cacheDir, "journal_shares").apply { mkdirs() }
+            val file = File(cachePath, "entry_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }

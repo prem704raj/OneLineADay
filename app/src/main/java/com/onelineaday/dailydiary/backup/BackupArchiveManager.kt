@@ -69,6 +69,29 @@ class BackupArchiveManager(
 
             return rawPath
         }
+
+        private val FILE_ID_REGEX =
+            Regex(
+                "^[0-9a-fA-F]{8}-" +
+                    "[0-9a-fA-F]{4}-" +
+                    "[0-9a-fA-F]{4}-" +
+                    "[0-9a-fA-F]{4}-" +
+                    "[0-9a-fA-F]{12}$"
+            )
+
+        internal fun validateFileId(
+            fileId: String
+        ): String {
+            require(
+                FILE_ID_REGEX.matches(
+                    fileId
+                )
+            ) {
+                "Invalid backup file ID."
+            }
+
+            return fileId
+        }
     }
 
     private val gson: Gson =
@@ -273,13 +296,18 @@ class BackupArchiveManager(
                                 ?: "bin"
 
                         val destination =
-                            File(restoredFilesDirectory, "${descriptor.id}.$extension")
+                            safeRestoreDestination(
+                                root = restoredFilesDirectory,
+                                fileId = descriptor.id,
+                                extension = extension
+                            )
 
                         zip.getInputStream(zipEntry).use { input ->
-                            FileOutputStream(destination).use { output ->
-                                input.copyTo(output)
-                                output.fd.sync()
-                            }
+                            copyZipEntryWithExactLimit(
+                                input = input,
+                                destination = destination,
+                                expectedBytes = descriptor.byteSize
+                            )
                         }
 
                         require(destination.length() == descriptor.byteSize) {
@@ -479,10 +507,40 @@ class BackupArchiveManager(
                 "Backup belongs to another application."
             }
 
+            require(
+                manifest.databaseSchemaVersion in
+                    1..JournalDatabase.VERSION
+            ) {
+                "Unsupported database schema version: " +
+                    manifest.databaseSchemaVersion
+            }
+
             val fileIds = hashSetOf<String>()
             val filePaths = hashSetOf<String>()
 
             manifest.files.forEach { descriptor ->
+                val validatedId =
+                    validateFileId(
+                        descriptor.id
+                    )
+
+                require(
+                    descriptor.archivePath.startsWith(
+                        "files/$validatedId."
+                    )
+                ) {
+                    "Backup file ID/path mismatch."
+                }
+
+                require(
+                    descriptor.kind in
+                        BackupFileKind.entries.map {
+                            it.name
+                        }
+                ) {
+                    "Invalid backup file kind."
+                }
+
                 require(fileIds.add(descriptor.id)) {
                     "Duplicate backup file ID."
                 }
@@ -534,6 +592,106 @@ class BackupArchiveManager(
                 }
 
                 output.fd.sync()
+            }
+        }
+    }
+
+    private fun safeRestoreDestination(
+        root: File,
+        fileId: String,
+        extension: String
+    ): File {
+        val validatedId =
+            validateFileId(
+                fileId
+            )
+
+        require(
+            extension.matches(
+                Regex(
+                    "[A-Za-z0-9]{1,10}"
+                )
+            )
+        ) {
+            "Invalid backup extension."
+        }
+
+        val canonicalRoot =
+            root.canonicalFile
+
+        val destination =
+            File(
+                canonicalRoot,
+                "$validatedId.$extension"
+            ).canonicalFile
+
+        require(
+            destination.parentFile ==
+                canonicalRoot
+        ) {
+            "Restore destination escaped its root."
+        }
+
+        return destination
+    }
+
+    private fun copyZipEntryWithExactLimit(
+        input: java.io.InputStream,
+        destination: File,
+        expectedBytes: Long
+    ) {
+        require(
+            expectedBytes in
+                0..MAX_SINGLE_FILE_BYTES
+        ) {
+            "Invalid expected attachment size."
+        }
+
+        FileOutputStream(
+            destination
+        ).use { output ->
+            val buffer =
+                ByteArray(
+                    DEFAULT_BUFFER_SIZE
+                )
+
+            var total =
+                0L
+
+            while (true) {
+                val read =
+                    input.read(
+                        buffer
+                    )
+
+                if (read < 0) {
+                    break
+                }
+
+                total +=
+                    read
+
+                require(
+                    total <=
+                        expectedBytes
+                ) {
+                    "Attachment exceeded declared size."
+                }
+
+                output.write(
+                    buffer,
+                    0,
+                    read
+                )
+            }
+
+            output.fd.sync()
+
+            require(
+                total ==
+                    expectedBytes
+            ) {
+                "Attachment size validation failed."
             }
         }
     }

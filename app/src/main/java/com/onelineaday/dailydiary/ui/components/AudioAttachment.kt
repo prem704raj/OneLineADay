@@ -105,7 +105,7 @@ fun AudioAttachment(
                 isRecording = false
                 Toast.makeText(
                     context,
-                    "Failed to start recording",
+                    context.getString(R.string.recording_start_failed),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -149,13 +149,13 @@ fun AudioAttachment(
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play/Pause",
+                                contentDescription = stringResource(if (isPlaying) R.string.pause_voice_memory else R.string.play_voice_memory),
                                 tint = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Voice Memory",
+                            text = stringResource(R.string.voice_memory),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -194,7 +194,7 @@ fun AudioAttachment(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Delete,
-                            contentDescription = "Delete Audio",
+                            contentDescription = stringResource(R.string.delete_audio),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -222,12 +222,12 @@ fun AudioAttachment(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Rounded.Mic,
-                            contentDescription = "Recording",
+                            contentDescription = stringResource(R.string.recording),
                             tint = SunsetOrange
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = String.format("Recording... %02d:%02d", recordingTime / 60, recordingTime % 60),
+                            text = "${stringResource(R.string.recording)}... ${String.format("%02d:%02d", recordingTime / 60, recordingTime % 60)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = SunsetOrange
                         )
@@ -247,7 +247,7 @@ fun AudioAttachment(
                                     pendingRecording = null
                                     Toast.makeText(
                                         context,
-                                        "Audio recording failed",
+                                        context.getString(R.string.recording_failed),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -256,7 +256,7 @@ fun AudioAttachment(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Stop,
-                            contentDescription = "Stop Recording",
+                            contentDescription = stringResource(R.string.stop_recording),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -292,7 +292,7 @@ fun AudioAttachment(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Record Voice Memory",
+                    text = stringResource(R.string.record_voice_memory),
                     style = MaterialTheme.typography.labelLarge
                 )
             }
@@ -341,7 +341,7 @@ fun AudioPlayerView(
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = "Play/Pause",
+                    contentDescription = stringResource(if (isPlaying) R.string.pause_voice_memory else R.string.play_voice_memory),
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(20.dp)
                 )
@@ -349,7 +349,7 @@ fun AudioPlayerView(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Voice Memory",
+                    text = stringResource(R.string.voice_memory),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,

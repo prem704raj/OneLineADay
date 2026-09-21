@@ -107,4 +107,54 @@ class BackupArchiveManagerTest {
             }
         }
     }
+
+    @Test
+    fun `valid UUID backup IDs succeed`() {
+        val id = "550e8400-e29b-41d4-a716-446655440000"
+        assertEquals(
+            id,
+            BackupArchiveManager.validateFileId(id)
+        )
+    }
+
+    @Test
+    fun `manifest file IDs cannot traverse`() {
+        val invalid = listOf(
+            "../outside",
+            "..",
+            "files/../x",
+            "/absolute",
+            "C:/Windows",
+            "550e8400-e29b-41d4-a716-446655440000/../../x",
+            ""
+        )
+
+        invalid.forEach { id ->
+            try {
+                BackupArchiveManager.validateFileId(id)
+                fail("Expected invalid ID: $id")
+            } catch (_: IllegalArgumentException) {
+                // expected
+            }
+        }
+    }
+
+    @Test
+    fun `non UUID backup IDs are rejected`() {
+        val invalid = listOf(
+            "abc",
+            "123",
+            "not-a-uuid",
+            "550e8400e29b41d4a716446655440000"
+        )
+
+        invalid.forEach { id ->
+            try {
+                BackupArchiveManager.validateFileId(id)
+                fail("Expected invalid ID: $id")
+            } catch (_: IllegalArgumentException) {
+                // expected
+            }
+        }
+    }
 }

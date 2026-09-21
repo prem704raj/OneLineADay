@@ -30,6 +30,8 @@
     <string name="version">Version</string>
     <string name="widget_name">Today\'s Line</string>
     <string name="widget_description">Shows your daily journal entry at a glance</string>
+    <string name="widget_locked_message">Tap to unlock your journal</string>
+    <string name="widget_empty_message">Tap to write your line for today…</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_dark_mode_subtitle">Use dark theme</string>
     <string name="settings_notifications">Notifications</string>
@@ -101,20 +103,6 @@
     <string name="timeline_your_line">Your line</string>
     <string name="privacy_policy_title">Privacy Policy</string>
     <string name="privacy_policy_back">Back</string>
-    <string name="privacy_section_1_title">1. Overview</string>
-    <string name="privacy_section_1_content">Welcome to One Line A Day. We respect your privacy and are committed to protecting it. This Privacy Policy details how we handle information in the application.\n\nLocal-First Guarantee: One Line A Day is a local-first application. All of your journal entries, selected moods, and photo attachments are stored directly and exclusively on your device. We do not operate servers, and we do not collect, transmit, share, or sell your personal data.</string>
-    <string name="privacy_section_2_title">2. Information Collection and Storage</string>
-    <string name="privacy_section_2_content">All data processed by the application is kept private and stored locally on your device:\n\n• Journal Entries &amp; Moods: Written entries and mood selections are stored in a local, encrypted-by-default SQLite database managed by the Android Room database framework.\n• Photos: When you attach photos to your journal entries, the app copies the image files into its private internal application directory (filesDir). These files are inaccessible to other apps and are not uploaded to any server.\n• Configuration Data: Application settings, including your dark mode preference and reminder schedules, are saved locally on the device using Android SharedPreferences and DataStore.</string>
-    <string name="privacy_section_3_title">3. Device Permissions</string>
-    <string name="privacy_section_3_content">To support its core journaling features, the app requests the following system permissions:\n\n• Notifications (POST_NOTIFICATIONS): Used only to deliver daily reminder alerts prompting you to write your entry. This permission is requested at runtime on supported Android versions, and you can disable reminders or permissions at any time.\n• Receive Boot Completed (RECEIVE_BOOT_COMPLETED): Used to automatically restore and reschedule your configured daily reminder notifications whenever your device is restarted.\n• Microphone (RECORD_AUDIO): Used only if you choose to record voice memos to attach to your journal entries. This permission is requested at runtime and is never used without your explicit action.\n\nThe app does not request or require permissions to access your contacts, location, accounts, camera, or general external file storage directories.</string>
-    <string name="privacy_section_4_title">4. Third-Party Libraries</string>
-    <string name="privacy_section_4_content">The app uses a small number of open-source third-party dependencies to improve functionality:\n\n• Coil: Used locally to load and display attached images on the screens.\n• iText PDF: Used locally on your device to compile and render your journal database into a shareable PDF format.\n• Google AdMob: Used to display optional rewarded video ads before PDF export. AdMob may collect device identifiers and usage data as described in Google\'s Privacy Policy (https://policies.google.com/privacy). No personal journal data is shared with AdMob.\n\nCoil and iText operate fully locally within the app and do not collect, store, or transmit your personal data externally.</string>
-    <string name="privacy_section_5_title">5. Security of Your Data</string>
-    <string name="privacy_section_5_content">Because all data remains strictly on your own physical device, the security of your journal relies on your device\'s overall security settings. We recommend securing your device with a PIN, pattern, password, or biometric lock to prevent unauthorized physical access to your device and journal entries.</string>
-    <string name="privacy_section_6_title">6. Children\'s Privacy</string>
-    <string name="privacy_section_6_content">Our application is completely safe for all users, including children. We do not collect any personal data whatsoever, making the application fully compliant with child privacy laws globally, including COPPA and GDPR.</string>
-    <string name="privacy_section_7_title">7. Contact Us</string>
-    <string name="privacy_section_7_content">If you have any questions, suggestions, or concerns regarding this privacy policy, feel free to contact us via email:\n\nDeveloper Support: developeraisteps@gmail.com</string>
     <string name="settings_language">Language</string>
     <string name="settings_select_language">Select Language</string>
     <string name="settings_app_lock">App Lock</string>
@@ -147,11 +135,39 @@
     <string name="privacy_v2_section_4_title" translatable="false">4. Device Permissions</string>
     <string name="privacy_v2_section_4_content" translatable="false">Notifications: Used to provide optional daily journal reminders.\n\nMicrophone: Used only when you choose to record a voice note.\n\nReceive Boot Completed: Used to restore scheduled reminder notifications after the device restarts.\n\nBiometric authentication: Used when you enable App Lock so Android can authenticate you using supported device security such as biometrics, PIN, pattern, or password.\n\nInternet and network state: Required by features such as Google Mobile Ads and Google Play services.\n\nThe app does not request general location, contacts, SMS, call log, or broad external-storage permissions.</string>
     <string name="privacy_v2_section_5_title" translatable="false">5. Backup, Export and Sharing</string>
-    <string name="privacy_v2_section_5_content" translatable="false">Android system backup or device-transfer features may back up eligible application database and preference data when those features are enabled on your device or Google account.\n\nOne Line A Day also provides user-initiated export features. If you export a journal backup, PDF, image, or other file and choose another application or cloud-storage provider, that exported data will be handled by the destination you select and according to that provider\'s privacy practices.\n\nWe do not automatically upload your journal entries to our own cloud server.</string>
+    <string name="privacy_v2_section_5_content" translatable="false">Android auto-backup of private app data is disabled by default to protect journal privacy. One Line A Day provides explicit user-initiated export features. If you export a journal backup, PDF, image, or other file and choose another application or cloud-storage provider, that exported data will be handled by the destination you select and according to that provider\'s privacy practices.\n\nWe do not automatically upload your journal entries to our own cloud server.</string>
     <string name="privacy_v2_section_6_title" translatable="false">6. Security</string>
     <string name="privacy_v2_section_6_content" translatable="false">Journal data is stored within Android application-private storage. The app also provides an optional App Lock that uses Android device authentication.\n\nNo application or security system can guarantee absolute security. You should keep your Android device protected with a PIN, password, pattern, or supported biometric authentication and keep the operating system updated.</string>
     <string name="privacy_v2_section_7_title" translatable="false">7. Children\'s Privacy</string>
     <string name="privacy_v2_section_7_content" translatable="false">One Line A Day is not specifically designed as a service directed at children. We do not claim that the application is automatically compliant with every child-privacy law in every country.\n\nIf the application is distributed to audiences that include children, additional Google Play Families, advertising, consent, and regional legal requirements may apply.</string>
     <string name="privacy_v2_section_8_title" translatable="false">8. Contact and Policy Updates</string>
     <string name="privacy_v2_section_8_content" translatable="false">We may update this Privacy Policy when the application, third-party SDKs, legal requirements, or data practices change.\n\nFor privacy questions or concerns, contact:\n\ndeveloperaisteps@gmail.com</string>
+    <string name="settings_ad_privacy_choices">Ad privacy choices</string>
+    <string name="settings_ad_privacy_choices_subtitle">Review your advertising privacy choices</string>
+    <string name="reminder_channel_name">Daily journal reminder</string>
+    <string name="reminder_channel_description">A gentle daily reminder to write your line</string>
+    <string name="reminder_message_1">How was your day? Capture one thing you want to remember.</string>
+    <string name="reminder_message_2">Your journal is ready when you are.</string>
+    <string name="reminder_message_3">A few seconds is enough to save today’s memory.</string>
+    <string name="reminder_message_4">What is one thing worth remembering from today?</string>
+    <string name="tags_placeholder">Add tags separated by a comma or space</string>
+    <string name="remove_tag">Remove tag %1$s</string>
+    <string name="stats_activity_graph">Writing activity</string>
+    <string name="stats_heatmap_description">%1$d active writing days in the last 15 weeks</string>
+    <string name="voice_memory">Voice memory</string>
+    <string name="play_voice_memory">Play voice memory</string>
+    <string name="pause_voice_memory">Pause voice memory</string>
+    <string name="recording">Recording</string>
+    <string name="stop_recording">Stop recording</string>
+    <string name="record_voice_memory">Record voice memory</string>
+    <string name="recording_start_failed">Could not start recording</string>
+    <string name="recording_failed">Audio recording failed</string>
+    <string name="delete_audio">Delete audio</string>
+    <string name="attached_photo">Attached photo</string>
+    <string name="image_unavailable">Image unavailable</string>
+    <string name="original_photo_deleted">Original photo was deleted</string>
+    <string name="photo_thumbnail">Photo thumbnail</string>
+    <string name="premium_unavailable">Unavailable</string>
+    <string name="premium_best_value">BEST VALUE</string>
+    <string name="premium_plan_unavailable">This plan is currently unavailable.</string>
 </resources>

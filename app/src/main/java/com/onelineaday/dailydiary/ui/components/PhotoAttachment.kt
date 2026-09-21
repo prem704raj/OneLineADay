@@ -91,7 +91,7 @@ fun PhotoAttachment(
                         )
                         .crossfade(true)
                         .build(),
-                    contentDescription = "Attached photo",
+                    contentDescription = stringResource(R.string.attached_photo),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -128,7 +128,7 @@ fun PhotoAttachment(
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Image unavailable",
+                                        text = stringResource(R.string.image_unavailable),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.error
                                     )
@@ -159,7 +159,7 @@ fun PhotoAttachment(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
-                            contentDescription = "Remove photo",
+                            contentDescription = stringResource(R.string.remove_photo),
                             tint = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.size(18.dp)
                         )
@@ -193,7 +193,7 @@ fun PhotoAttachment(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Original photo was deleted",
+                        text = stringResource(R.string.original_photo_deleted),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -233,7 +233,7 @@ fun PhotoAttachment(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Add Photo",
+                    text = stringResource(R.string.add_photo),
                     style = MaterialTheme.typography.labelLarge
                 )
             }
@@ -256,7 +256,7 @@ fun PhotoThumbnail(
             .data(photoFile ?: photoUri)
             .crossfade(true)
             .build(),
-        contentDescription = "Photo thumbnail",
+        contentDescription = stringResource(R.string.photo_thumbnail),
         contentScale = ContentScale.Crop,
         modifier = modifier
             .size(48.dp)

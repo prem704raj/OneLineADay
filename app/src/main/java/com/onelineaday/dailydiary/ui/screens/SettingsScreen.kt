@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.onelineaday.dailydiary.security.AppLockManager
+import com.onelineaday.dailydiary.ui.components.JournalSwitcherCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -134,6 +135,7 @@ fun SettingsScreen(
         }
     }
     
+    val privacyOptionsRequired by com.onelineaday.dailydiary.ads.AdsConsentManager.privacyOptionsRequired.collectAsState()
     var isRestoringBackup by remember { mutableStateOf(false) }
     var isExportingBackup by remember { mutableStateOf(false) }
     var showBackupPrivacyDialog by remember { mutableStateOf(false) }
@@ -334,6 +336,20 @@ fun SettingsScreen(
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
+
+                // Multi-Journal Switcher
+                JournalSwitcherCard(
+                    journals = uiState.journals,
+                    activeJournalId = uiState.activeJournalId,
+                    onSelect = { journalId ->
+                        viewModel.setActiveJournal(journalId)
+                    },
+                    onCreate = { name ->
+                        viewModel.createJournal(name)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
                 
                 // Appearance & Security Section
                 SettingsSection(title = stringResource(R.string.settings_appearance)) {
@@ -482,6 +498,7 @@ fun SettingsScreen(
                                             context,
                                             shouldEnable
                                         )
+                                        com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(context)
                                         appLockEnabled = shouldEnable
                                         Toast.makeText(
                                             context,
@@ -689,6 +706,25 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                     
+                    if (privacyOptionsRequired) {
+                        SettingsItem(
+                            icon = Icons.Rounded.PrivacyTip,
+                            title = stringResource(R.string.settings_ad_privacy_choices),
+                            subtitle = stringResource(R.string.settings_ad_privacy_choices_subtitle),
+                            onClick = {
+                                val activity = context as? Activity
+                                if (activity != null) {
+                                    com.onelineaday.dailydiary.ads.AdsConsentManager.showPrivacyOptions(activity)
+                                }
+                            }
+                        )
+                        
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                    }
+
                     SettingsItem(
                         icon = Icons.Rounded.PrivacyTip,
                         title = stringResource(R.string.settings_privacy_policy),

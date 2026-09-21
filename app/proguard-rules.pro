@@ -5,12 +5,6 @@
 # Keep Room entities
 -keep class com.onelineaday.dailydiary.data.** { *; }
 
-# iText PDF
--keep class com.itextpdf.** { *; }
--dontwarn com.itextpdf.**
-
-# SLF4J (iText dependency)
--dontwarn org.slf4j.**
 
 # Google Mobile Ads
 -keep class com.google.android.gms.ads.** { *; }

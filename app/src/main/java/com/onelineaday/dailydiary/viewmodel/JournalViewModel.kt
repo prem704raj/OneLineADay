@@ -31,7 +31,6 @@ data class JournalUiState(
     val searchQuery: String = "",
     val searchResults: List<JournalEntry> = emptyList(),
     val entrySaved: Boolean = false,  // Flag to trigger form reset
-    val freezesAvailable: Int = 0,
     val activeJournalId: String = "default",
     val journals: List<Journal> = emptyList(),
     val isSaving: Boolean = false
@@ -75,6 +74,12 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.getAllJournals().collect { journals ->
                 _uiState.update { it.copy(journals = journals) }
+            }
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                cleanupOrphansNow()
             }
         }
 
@@ -136,8 +141,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                             currentStreak = streak,
                             longestStreak = longestStreak,
                             totalEntries = entries.size,
-                            isLoading = false,
-                            freezesAvailable = prefs.getInt("streak_freezes", 0)
+                            isLoading = false
                         )
                     }
                 }
@@ -199,7 +203,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                             photoUri = photoUri,
                             mediaUris = finalMediaUris,
                             tags = normalizedTags,
-                            audioUri = audioUri ?: existingEntry.audioUri,
+                            audioUri = audioUri,
                             updatedAt = now
                         )
                     } else {
@@ -218,6 +222,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                     }
 
                 repository.saveEntry(entry)
+                cleanupNoLongerReferenced(existingEntry, entry)
                 _uiState.update {
                     it.copy(
                         message = "Entry saved!",
@@ -262,11 +267,12 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 mood = newMood,
                 photoUri = newPhotoUri,
                 mediaUris = newMediaUris,
-                audioUri = newAudioUri ?: entry.audioUri,
+                audioUri = newAudioUri,
                 tags = newTags,
                 updatedAt = System.currentTimeMillis()
             )
             repository.saveEntry(updatedEntry)
+            cleanupNoLongerReferenced(entry, updatedEntry)
             _uiState.update { it.copy(message = "Entry updated!") }
         }
     }
@@ -277,18 +283,6 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             repository.saveEntry(updatedEntry)
             _uiState.update { it.copy(message = if (updatedEntry.isPinned) "Entry pinned" else "Entry unpinned") }
         }
-    }
-    
-    fun claimFreeze() {
-        val current = prefs.getInt("streak_freezes", 0)
-        prefs.edit().putInt("streak_freezes", current + 1).apply()
-        _uiState.update { 
-            it.copy(
-                freezesAvailable = current + 1,
-                message = "Streak Freeze claimed!"
-            )
-        }
-        loadData(_activeJournalId.value)
     }
     
     fun deleteEntryByDate(date: LocalDate) {
@@ -356,13 +350,46 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         return mediaStorage.importVisualMedia(sourceUri).getOrNull()?.absolutePath
     }
 
-    fun saveMediaToInternal(context: Context, sourceUri: Uri): String? {
-        val destination = mediaStorage.runCatching {
-            kotlinx.coroutines.runBlocking {
-                importMedia(sourceUri)
-            }
-        }.getOrNull()
-        return destination
+    private fun JournalEntry.attachmentPaths(): Set<String> = buildSet {
+        photoUri?.let(::add)
+        addAll(mediaUris)
+        audioUri?.let(::add)
+    }
+
+    private suspend fun cleanupNoLongerReferenced(
+        previous: JournalEntry?,
+        current: JournalEntry?
+    ) {
+        if (previous == null) {
+            return
+        }
+
+        val candidates = previous.attachmentPaths() - (current?.attachmentPaths() ?: emptySet())
+        if (candidates.isEmpty()) {
+            return
+        }
+
+        val allEntries = repository.getAllEntriesForBackup()
+        val stillReferenced = allEntries.flatMap { it.attachmentPaths() }.toSet()
+
+        candidates.forEach { path ->
+            mediaStorage.deleteIfUnreferenced(
+                path = path,
+                referencedPaths = stillReferenced
+            )
+        }
+    }
+
+    private suspend fun cleanupOrphansNow() {
+        val entries = repository.getAllEntriesForBackup()
+        val referenced = entries.flatMap { it.attachmentPaths() }.toMutableSet()
+
+        // Preserve current one-level shake undo.
+        lastDeletedEntry?.attachmentPaths()?.let {
+            referenced.addAll(it)
+        }
+
+        mediaStorage.cleanupOrphans(referenced)
     }
     
     fun getEntriesForMonth(year: Int, month: Int): List<JournalEntry> {

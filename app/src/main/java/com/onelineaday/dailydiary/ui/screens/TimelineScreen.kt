@@ -92,6 +92,7 @@ fun TimelineScreen(
                     newMood = newMood,
                     newPhotoUri = newPhotoUri,
                     newMediaUris = newMediaUris,
+                    newAudioUri = entry.audioUri,
                     newTags = newTags
                 )
                 editingEntry = null
@@ -471,6 +472,8 @@ fun EditEntryDialog(
     onSave: (String, Mood, String?, List<String>, List<String>) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isImportingMedia by remember { mutableStateOf(false) }
     var editedText by remember { mutableStateOf(entry.content) }
     var editedMood by remember { mutableStateOf(entry.mood) }
     var editedMediaUris by remember { mutableStateOf(entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }) }
@@ -552,14 +555,27 @@ fun EditEntryDialog(
                 MediaGallery(
                     mediaUris = editedMediaUris,
                     onMediaSelected = { uris ->
-                        val newPaths = uris.mapNotNull { viewModel.saveMediaToInternal(context, it) }
-                        editedMediaUris = editedMediaUris + newPaths
+                        scope.launch {
+                            isImportingMedia = true
+                            try {
+                                val newPaths = uris.mapNotNull { uri ->
+                                    viewModel.importMedia(uri)
+                                }
+                                editedMediaUris = (editedMediaUris + newPaths).distinct()
+                            } finally {
+                                isImportingMedia = false
+                            }
+                        }
                     },
                     onMediaRemoved = { uri ->
                         editedMediaUris = editedMediaUris.filter { it != uri }
                     },
                     isEditable = true
                 )
+
+                if (isImportingMedia) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
             }
         },
         confirmButton = {
@@ -569,7 +585,7 @@ fun EditEntryDialog(
                         onSave(editedText, editedMood, editedMediaUris.firstOrNull(), editedMediaUris, editedTags) 
                     }
                 },
-                enabled = editedText.isNotBlank()
+                enabled = editedText.isNotBlank() && !isImportingMedia
             ) {
                 Text(stringResource(R.string.save))
             }

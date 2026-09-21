@@ -141,6 +141,15 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    val activeJournalName = uiState.journals.firstOrNull { it.id == uiState.activeJournalId }?.name
+                    if (uiState.journals.size > 1 && activeJournalName != null) {
+                        Text(
+                            text = activeJournalName,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
                 
                 val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
@@ -312,7 +321,13 @@ fun HomeScreen(
                                     }
                                 }
                             },
-                            onPhotoRemoved = { photoUri = null }
+                            onPhotoRemoved = {
+                                val removedPath = photoUri
+                                photoUri = null
+                                if (removedPath != null) {
+                                    draftMediaUris = ArrayList(draftMediaUris.filterNot { it == removedPath })
+                                }
+                            }
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))

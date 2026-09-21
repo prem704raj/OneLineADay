@@ -65,6 +65,10 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 ksp {
@@ -150,19 +154,15 @@ dependencies {
 
 
     // -------------------------
-    // PDF generation
+    // Google AdMob & UMP Consent
     // -------------------------
 
     implementation(
-        "com.itextpdf:itext7-core:7.2.5"
+        "com.google.android.gms:play-services-ads:25.5.0"
     )
 
-    // -------------------------
-    // Google AdMob
-    // -------------------------
-
     implementation(
-        "com.google.android.gms:play-services-ads:23.6.0"
+        "com.google.android.ump:user-messaging-platform:4.0.0"
     )
 
     // -------------------------
@@ -209,6 +209,10 @@ dependencies {
     // -------------------------
     // Instrumentation tests
     // -------------------------
+
+    androidTestImplementation(
+        "androidx.room:room-testing:2.7.1"
+    )
 
     androidTestImplementation(
         "androidx.test.ext:junit:1.1.5"
