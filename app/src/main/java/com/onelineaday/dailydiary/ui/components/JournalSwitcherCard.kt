@@ -31,8 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.Journal
 
 @Composable
@@ -73,20 +75,20 @@ fun JournalSwitcherCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Current journal",
+                    text = stringResource(R.string.current_journal),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
-                    text = active?.name ?: "My Diary",
+                    text = active?.name ?: stringResource(R.string.default_journal_name),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
             }
 
             Text(
-                text = "Change",
+                text = stringResource(R.string.change),
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -96,7 +98,7 @@ fun JournalSwitcherCard(
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = {
-                Text("Choose journal")
+                Text(stringResource(R.string.choose_journal))
             },
             text = {
                 Column(
@@ -134,7 +136,7 @@ fun JournalSwitcherCard(
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it.take(40) },
-                        label = { Text("New journal name") },
+                        label = { Text(stringResource(R.string.new_journal_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -158,13 +160,13 @@ fun JournalSwitcherCard(
 
                         Spacer(Modifier.width(8.dp))
 
-                        Text("Create journal")
+                        Text(stringResource(R.string.create_journal))
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showDialog = false }) {
-                    Text("Close")
+                    Text(stringResource(R.string.close))
                 }
             }
         )

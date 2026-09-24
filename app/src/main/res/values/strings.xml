@@ -204,4 +204,50 @@
     <!-- Ad Privacy -->
     <string name="ad_privacy_choices">Ad privacy choices</string>
     <string name="ad_privacy_subtitle">Review your advertising privacy choices</string>
+    <!-- Journal Switcher -->
+    <string name="current_journal">Current journal</string>
+    <string name="default_journal_name">My Diary</string>
+    <string name="change">Change</string>
+    <string name="choose_journal">Choose journal</string>
+    <string name="new_journal_name">New journal name</string>
+    <string name="create_journal">Create journal</string>
+    <string name="close">Close</string>
+
+    <!-- Lock Screen -->
+    <string name="diary_locked">Diary Locked</string>
+    <string name="lock_auth_message">Confirm your identity using your fingerprint, face, PIN, pattern, or password.</string>
+    <string name="lock_not_available">Device authentication is not available. Set up a screen lock or biometric authentication in Android settings.</string>
+    <string name="unlock_diary">Unlock Diary</string>
+    <string name="open_device_security">Open Device Security</string>
+
+    <!-- Entry Detail -->
+    <string name="entry_details">Entry Details</string>
+    <string name="back">Back</string>
+    <string name="your_line">Your Line</string>
+    <string name="media_attached">Media Attached</string>
+    <string name="you_were_feeling">You were feeling</string>
+
+    <!-- Stats -->
+    <string name="current_streak_title">Current Streak</string>
+    <string name="longest_streak_title">Longest Streak</string>
+    <string name="mood_distribution">Mood Distribution</string>
+    <string name="year_in_review">%1$d in Review</string>
+    <string name="entries_label">Entries</string>
+    <string name="top_mood">Top Mood</string>
+    <string name="best_streak">Best Streak</string>
+    <string name="streak_days">%1$d days</string>
+
+    <!-- Media Gallery -->
+    <string name="media_attached_desc">Attached media</string>
+    <string name="play_video">Play Video</string>
+    <string name="remove_media">Remove media</string>
+    <string name="add_media">Add Media</string>
+
+    <!-- ViewModel -->
+    <string name="save_failed">Could not save entry.</string>
+    <string name="entry_deleted_undo">Entry deleted (Shake to undo)</string>
+    <string name="entry_updated">Entry updated!</string>
+    <string name="entry_pinned">Entry pinned</string>
+    <string name="entry_unpinned">Entry unpinned</string>
+    <string name="entry_restored">Entry restored!</string>
 </resources>

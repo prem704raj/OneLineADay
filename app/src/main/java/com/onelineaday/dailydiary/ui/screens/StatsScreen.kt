@@ -31,21 +31,27 @@ fun StatsScreen(
     val scrollState = rememberScrollState()
     
     // Calculate additional stats
-    val firstEntryDate = uiState.entries.minByOrNull { it.date }?.date
-    val journeyDays = firstEntryDate?.let { 
-        ChronoUnit.DAYS.between(it, LocalDate.now()).toInt() + 1 
-    } ?: 0
+    val firstEntryDate = remember(uiState.entries) { uiState.entries.minByOrNull { it.date }?.date }
+    val journeyDays = remember(firstEntryDate) {
+        firstEntryDate?.let { 
+            ChronoUnit.DAYS.between(it, LocalDate.now()).toInt() + 1 
+        } ?: 0
+    }
     
-    val thisMonthEntries = uiState.entries.filter { 
-        it.date.month == LocalDate.now().month && 
-        it.date.year == LocalDate.now().year 
-    }.size
+    val thisMonthEntries = remember(uiState.entries) {
+        uiState.entries.filter { 
+            it.date.month == LocalDate.now().month && 
+            it.date.year == LocalDate.now().year 
+        }.size
+    }
     
-    val thisWeekEntries = uiState.entries.filter { entry ->
-        val today = LocalDate.now()
-        val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
-        entry.date >= weekStart && entry.date <= today
-    }.size
+    val thisWeekEntries = remember(uiState.entries) {
+        uiState.entries.filter { entry ->
+            val today = LocalDate.now()
+            val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
+            entry.date >= weekStart && entry.date <= today
+        }.size
+    }
     
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -286,33 +292,39 @@ fun YearInReviewCard(
     entries: List<com.onelineaday.dailydiary.data.JournalEntry>,
     modifier: Modifier = Modifier
 ) {
-    val currentYear = java.time.LocalDate.now().year
-    val thisYearEntries = entries.filter { it.date.year == currentYear }
+    val currentYear = remember { java.time.LocalDate.now().year }
     
-    val totalEntries = thisYearEntries.size
-    val topMood = thisYearEntries.groupBy { it.mood }
-        .maxByOrNull { it.value.size }?.key
+    val thisYearEntries = remember(entries) { entries.filter { it.date.year == currentYear } }
+    
+    val totalEntries = remember(thisYearEntries) { thisYearEntries.size }
+    val topMood = remember(thisYearEntries) {
+        thisYearEntries.groupBy { it.mood }
+            .maxByOrNull { it.value.size }?.key
+    }
         
     // Calculate longest streak for this year
-    var longestStreak = 0
-    var currentStreak = 0
-    var previousDate: java.time.LocalDate? = null
-    
-    thisYearEntries.sortedBy { it.date }.forEach { entry ->
-        if (previousDate == null) {
-            currentStreak = 1
-        } else {
-            val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(previousDate, entry.date)
-            if (daysBetween == 1L) {
-                currentStreak++
-            } else if (daysBetween > 1L) {
-                currentStreak = 1
+    val longestStreak = remember(thisYearEntries) {
+        var streak = 0
+        var current = 0
+        var previousDate: java.time.LocalDate? = null
+        
+        thisYearEntries.sortedBy { it.date }.forEach { entry ->
+            if (previousDate == null) {
+                current = 1
+            } else {
+                val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(previousDate, entry.date)
+                if (daysBetween == 1L) {
+                    current++
+                } else if (daysBetween > 1L) {
+                    current = 1
+                }
             }
+            if (current > streak) {
+                streak = current
+            }
+            previousDate = entry.date
         }
-        if (currentStreak > longestStreak) {
-            longestStreak = currentStreak
-        }
-        previousDate = entry.date
+        streak
     }
 
     androidx.compose.material3.Card(
@@ -335,7 +347,7 @@ fun YearInReviewCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "$currentYear in Review",
+                    text = stringResource(R.string.year_in_review, currentYear),
                     style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     color = androidx.compose.material3.MaterialTheme.colorScheme.primary
@@ -349,18 +361,18 @@ fun YearInReviewCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 YearStatItem(
-                    label = "Entries",
+                    label = stringResource(R.string.entries_label),
                     value = totalEntries.toString(),
                     modifier = Modifier.weight(1f)
                 )
                 YearStatItem(
-                    label = "Top Mood",
+                    label = stringResource(R.string.top_mood),
                     value = topMood?.emoji ?: "-",
                     modifier = Modifier.weight(1f)
                 )
                 YearStatItem(
-                    label = "Best Streak",
-                    value = "$longestStreak days",
+                    label = stringResource(R.string.best_streak),
+                    value = stringResource(R.string.streak_days, longestStreak),
                     modifier = Modifier.weight(1f)
                 )
             }

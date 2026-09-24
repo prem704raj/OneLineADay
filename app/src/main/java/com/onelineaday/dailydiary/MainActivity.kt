@@ -104,13 +104,19 @@ class MainActivity : FragmentActivity() {
              * -------------------------
              */
 
-            var isDarkMode by remember {
-
+            var themeMode by remember {
                 mutableStateOf(
-                    prefs.getBoolean(
-                        "dark_mode",
-                        systemDarkMode
-                    )
+                    try {
+                        prefs.getString("theme_mode", null) ?: run {
+                            if (prefs.contains("dark_mode")) {
+                                if (prefs.getBoolean("dark_mode", false)) "dark" else "light"
+                            } else {
+                                "system"
+                            }
+                        }
+                    } catch (e: Exception) {
+                        "system"
+                    }
                 )
             }
 
@@ -287,12 +293,12 @@ class MainActivity : FragmentActivity() {
              * Persist theme changes
              * -------------------------
              */
-            LaunchedEffect(isDarkMode) {
+            LaunchedEffect(themeMode) {
 
                 prefs.edit()
-                    .putBoolean(
-                        "dark_mode",
-                        isDarkMode
+                    .putString(
+                        "theme_mode",
+                        themeMode
                     )
                     .apply()
             }
@@ -406,7 +412,7 @@ class MainActivity : FragmentActivity() {
              */
 
             OneLineADayTheme(
-                darkTheme = isDarkMode,
+                themeMode = themeMode,
                 appTheme = currentAppTheme
             ) {
 
@@ -461,11 +467,9 @@ class MainActivity : FragmentActivity() {
                     } else {
 
                         MainNavigation(
-                            isDarkMode =
-                                isDarkMode,
-
-                            onDarkModeChange = {
-                                isDarkMode = it
+                            themeMode = themeMode,
+                            onThemeModeChange = {
+                                themeMode = it
                             },
 
                             currentAppTheme =

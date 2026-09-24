@@ -51,6 +51,8 @@ import com.onelineaday.dailydiary.viewmodel.JournalUiState
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
 import com.onelineaday.dailydiary.backup.BackupExportResult
 import com.onelineaday.dailydiary.backup.BackupRestoreResult
+import com.onelineaday.dailydiary.utils.PdfExportHelper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,8 +64,8 @@ import java.time.format.DateTimeFormatter
 fun SettingsScreen(
     viewModel: JournalViewModel,
     uiState: JournalUiState,
-    isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit,
+    themeMode: String,
+    onThemeModeChange: (String) -> Unit,
     currentAppTheme: com.onelineaday.dailydiary.ui.theme.AppTheme = com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT,
     onThemeChange: (com.onelineaday.dailydiary.ui.theme.AppTheme) -> Unit = {},
     onNavigateToPrivacyPolicy: () -> Unit,
@@ -141,7 +143,7 @@ fun SettingsScreen(
     var showBackupPrivacyDialog by remember { mutableStateOf(false) }
     
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
@@ -351,13 +353,56 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
 
-                    SettingsToggleItem(
+                    var showThemeModeDialog by remember { mutableStateOf(false) }
+                    SettingsItem(
                         icon = Icons.Rounded.DarkMode,
                         title = stringResource(R.string.dark_mode),
-                        subtitle = stringResource(R.string.settings_dark_mode_subtitle),
-                        isChecked = isDarkMode,
-                        onCheckedChange = onDarkModeChange
+                        subtitle = when (themeMode) {
+                            "dark" -> "Dark"
+                            "light" -> "Light"
+                            else -> "System Default"
+                        },
+                        onClick = { showThemeModeDialog = true }
                     )
+                    
+                    if (showThemeModeDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showThemeModeDialog = false },
+                            title = { Text("App Theme Mode") },
+                            text = {
+                                Column {
+                                    val options = listOf("system" to "System Default", "light" to "Light", "dark" to "Dark")
+                                    options.forEach { (value, label) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    onThemeModeChange(value)
+                                                    showThemeModeDialog = false
+                                                }
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = themeMode == value,
+                                                onClick = {
+                                                    onThemeModeChange(value)
+                                                    showThemeModeDialog = false
+                                                }
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showThemeModeDialog = false }) {
+                                    Text("Close")
+                                }
+                            }
+                        )
+                    }
                     
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 56.dp),
@@ -570,22 +615,7 @@ fun SettingsScreen(
                         onClick = {
                             val isPremium = com.onelineaday.dailydiary.PremiumManager.isPremium.value
                             if (isPremium) {
-                                scope.launch {
-                                    isExporting = true
-                                    try {
-                                        val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
-                                        if (uri != null) {
-                                            sharePdf(context, uri)
-                                        }
-                                    } catch (e: Exception) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            context.getString(R.string.toast_export_failed, e.message),
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                    isExporting = false
-                                }
+                                exportPdf(scope, context, uiState) { isExporting = it }
                             } else {
                                 showAdDialog = true
                             }
@@ -620,7 +650,7 @@ fun SettingsScreen(
                         subtitle = stringResource(R.string.settings_restore_backup_subtitle),
                         isLoading = isRestoringBackup,
                         onClick = { 
-                            importLauncher.launch("application/zip")
+                            importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
                         }
                     )
                 }
@@ -889,62 +919,17 @@ fun SettingsScreen(
                                 onAdDismissed = {
                                     if (adRewarded) {
                                         adRewarded = false
-                                        scope.launch {
-                                            isExporting = true
-                                            try {
-                                                val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
-                                        if (uri != null) {
-                                            sharePdf(context, uri)
-                                        }
-                                            } catch (e: Exception) {
-                                                Toast.makeText(
-                                                    context,
-                                                    context.getString(R.string.toast_export_failed, e.message),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
-                                            isExporting = false
-                                        }
+                                        exportPdf(scope, context, uiState) { isExporting = it }
                                     }
                                 },
                                 onAdNotAvailable = {
                                     // Fallback: let user export even if ad fails
-                                    scope.launch {
-                                        isExporting = true
-                                        try {
-                                            val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
-                                        if (uri != null) {
-                                            sharePdf(context, uri)
-                                        }
-                                        } catch (e: Exception) {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.toast_export_failed, e.message),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                        isExporting = false
-                                    }
+                                    exportPdf(scope, context, uiState) { isExporting = it }
                                 }
                             )
                         } else {
                             // Not an Activity context — export directly
-                            scope.launch {
-                                isExporting = true
-                                try {
-                                    val uri = com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(context, uiState.entries, uiState.currentStreak, uiState.longestStreak, uiState.totalEntries)
-                                        if (uri != null) {
-                                            sharePdf(context, uri)
-                                        }
-                                } catch (e: Exception) {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.toast_export_failed, e.message),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                                isExporting = false
-                            }
+                            exportPdf(scope, context, uiState) { isExporting = it }
                         }
                     }
                 ) {
@@ -1223,6 +1208,37 @@ fun SettingsToggleItem(
                 checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
             )
         )
+    }
+}
+
+private fun exportPdf(
+    scope: CoroutineScope,
+    context: Context,
+    uiState: JournalUiState,
+    onExportingChange: (Boolean) -> Unit = {}
+) {
+    scope.launch {
+        onExportingChange(true)
+        try {
+            val uri = PdfExportHelper.generateJournalPdf(
+                context,
+                uiState.entries,
+                uiState.currentStreak,
+                uiState.longestStreak,
+                uiState.totalEntries
+            )
+            if (uri != null) {
+                sharePdf(context, uri)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.toast_export_failed, e.message),
+                Toast.LENGTH_SHORT
+            ).show()
+        } finally {
+            onExportingChange(false)
+        }
     }
 }
 

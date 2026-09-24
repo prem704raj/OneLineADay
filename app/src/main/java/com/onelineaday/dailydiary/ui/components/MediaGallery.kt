@@ -30,10 +30,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImagePainter
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.ui.theme.*
 import java.io.File
 
@@ -139,51 +142,16 @@ private fun MediaItem(
                     }
                 }
         ) {
-            SubcomposeAsyncImage(
+            AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(mediaFile ?: uriString)
                     .crossfade(true)
                     // If we use coil-video, it will generate a thumbnail for video files.
                     .build(),
-                contentDescription = "Attached media",
+                contentDescription = stringResource(R.string.media_attached_desc),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
-            ) {
-                val state = painter.state
-                when (state) {
-                    is AsyncImagePainter.State.Loading -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    is AsyncImagePainter.State.Error -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.BrokenImage,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-                    else -> {
-                        SubcomposeAsyncImageContent()
-                    }
-                }
-            }
+            )
             
             // Video Play Icon overlay
             if (isVideo) {
@@ -195,7 +163,7 @@ private fun MediaItem(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PlayCircleOutline,
-                        contentDescription = "Play Video",
+                        contentDescription = stringResource(R.string.play_video),
                         tint = Color.White,
                         modifier = Modifier.size(48.dp)
                     )
@@ -220,7 +188,7 @@ private fun MediaItem(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
-                            contentDescription = "Remove media",
+                            contentDescription = stringResource(R.string.remove_media),
                             tint = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.size(16.dp)
                         )
@@ -247,7 +215,7 @@ private fun MediaItem(
                 )
                 if (isEditable) {
                     TextButton(onClick = onRemove) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -279,7 +247,7 @@ private fun AddMediaButtonLarge(onClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Add Media",
+            text = stringResource(R.string.add_media),
             style = MaterialTheme.typography.labelLarge
         )
     }
@@ -303,11 +271,11 @@ private fun AddMediaButtonSmall(onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = Icons.Rounded.Add,
-                contentDescription = "Add Media",
+                contentDescription = stringResource(R.string.add_media),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Add",
+                text = stringResource(R.string.add_media),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )

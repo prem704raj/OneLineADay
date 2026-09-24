@@ -89,11 +89,16 @@ enum class AppTheme {
 
 @Composable
 fun OneLineADayTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "system",
     appTheme: AppTheme = AppTheme.DEFAULT,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
     val colorScheme = when (appTheme) {
         AppTheme.OCEAN -> if (darkTheme) {
             DarkColorScheme.copy(

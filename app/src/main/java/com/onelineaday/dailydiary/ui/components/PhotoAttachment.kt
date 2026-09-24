@@ -80,7 +80,7 @@ fun PhotoAttachment(
                     .clip(RoundedCornerShape(16.dp))
             ) {
                 // Use SubcomposeAsyncImage for better error handling
-                SubcomposeAsyncImage(
+                AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(
                             if (photoUri?.startsWith("/") == true) {
@@ -94,52 +94,7 @@ fun PhotoAttachment(
                     contentDescription = stringResource(R.string.attached_photo),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
-                ) {
-                    val state = painter.state
-                    when (state) {
-                        is AsyncImagePainter.State.Loading -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(32.dp),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        is AsyncImagePainter.State.Error -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.BrokenImage,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(40.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = stringResource(R.string.image_unavailable),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                        else -> {
-                            SubcomposeAsyncImageContent()
-                        }
-                    }
-                }
+                )
                 
                 // Remove button
                 IconButton(
@@ -251,7 +206,7 @@ fun PhotoThumbnail(
         if (photoUri.startsWith("/")) File(photoUri) else null
     }
     
-    SubcomposeAsyncImage(
+    AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(photoFile ?: photoUri)
             .crossfade(true)
@@ -269,25 +224,6 @@ fun PhotoThumbnail(
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable { onClick() }
-    ) {
-        when (painter.state) {
-            is AsyncImagePainter.State.Error -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.errorContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.BrokenImage,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-            else -> SubcomposeAsyncImageContent()
-        }
-    }
+    )
 }
 

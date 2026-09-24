@@ -17,9 +17,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.MoodCount
 import com.onelineaday.dailydiary.ui.theme.*
 
@@ -176,7 +178,7 @@ fun StreakCard(
                     )
                     
                     Text(
-                        text = "Current Streak",
+                        text = stringResource(R.string.current_streak_title),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -217,7 +219,7 @@ fun StreakCard(
                     )
                     
                     Text(
-                        text = "Longest Streak",
+                        text = stringResource(R.string.longest_streak_title),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -243,7 +245,7 @@ fun MoodDistributionCard(
             modifier = Modifier.padding(20.dp)
         ) {
             Text(
-                text = "Mood Distribution",
+                text = stringResource(R.string.mood_distribution),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -252,7 +254,7 @@ fun MoodDistributionCard(
             
             if (moodDistribution.isEmpty()) {
                 Text(
-                    text = "No entries yet",
+                    text = stringResource(R.string.no_entries_yet),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import coil.compose.AsyncImagePainter
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
@@ -209,7 +210,7 @@ fun EntryCard(
                             .size(100.dp)
                             .clip(RoundedCornerShape(12.dp))
                     ) {
-                        SubcomposeAsyncImage(
+                        AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(mediaData)
                                 .crossfade(true)
@@ -217,26 +218,7 @@ fun EntryCard(
                             contentDescription = "Entry media",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
-                        ) {
-                            when (painter.state) {
-                                is AsyncImagePainter.State.Error -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.BrokenImage,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                                else -> SubcomposeAsyncImageContent()
-                            }
-                        }
+                        )
                         
                         if (isVideo) {
                             Box(

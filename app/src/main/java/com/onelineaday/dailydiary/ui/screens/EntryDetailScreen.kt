@@ -62,7 +62,7 @@ fun EntryDetailScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Entry Details",
+                        text = stringResource(R.string.entry_details),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -71,7 +71,7 @@ fun EntryDetailScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -217,7 +217,7 @@ fun EntryDetailScreen(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "Your Line",
+                        text = stringResource(R.string.your_line),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
@@ -277,7 +277,7 @@ fun EntryDetailScreen(
                         modifier = Modifier.padding(20.dp)
                     ) {
                         Text(
-                            text = "Media Attached",
+                            text = stringResource(R.string.media_attached),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
@@ -321,7 +321,7 @@ fun EntryDetailScreen(
                     
                     Column {
                         Text(
-                            text = "You were feeling",
+                            text = stringResource(R.string.you_were_feeling),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

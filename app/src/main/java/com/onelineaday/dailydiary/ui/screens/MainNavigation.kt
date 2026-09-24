@@ -72,8 +72,8 @@ val screens = listOf(
 
 @Composable
 fun MainNavigation(
-    isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit,
+    themeMode: String,
+    onThemeModeChange: (String) -> Unit,
     currentAppTheme: com.onelineaday.dailydiary.ui.theme.AppTheme = com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT,
     onThemeChange: (com.onelineaday.dailydiary.ui.theme.AppTheme) -> Unit = {},
     modifier: Modifier = Modifier
@@ -220,8 +220,8 @@ fun MainNavigation(
                 SettingsScreen(
                     viewModel = viewModel,
                     uiState = uiState,
-                    isDarkMode = isDarkMode,
-                    onDarkModeChange = onDarkModeChange,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     currentAppTheme = currentAppTheme,
                     onThemeChange = onThemeChange,
                     onNavigateToPrivacyPolicy = { navController.navigate("privacy_policy") }

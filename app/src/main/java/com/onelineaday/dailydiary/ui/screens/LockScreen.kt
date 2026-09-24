@@ -13,9 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.onelineaday.dailydiary.R
 
 @Composable
 fun LockScreen(
@@ -74,7 +76,7 @@ fun LockScreen(
                         Icons.Rounded.Lock,
 
                     contentDescription =
-                        "Diary locked",
+                        stringResource(R.string.diary_locked),
 
                     modifier =
                         Modifier.size(64.dp),
@@ -92,7 +94,7 @@ fun LockScreen(
             )
 
             Text(
-                text = "Diary Locked",
+                text = stringResource(R.string.diary_locked),
                 style =
                     MaterialTheme
                         .typography
@@ -114,11 +116,11 @@ fun LockScreen(
                 text =
                     if (authenticationAvailable) {
 
-                        "Confirm your identity using your fingerprint, face, PIN, pattern, or password."
+                        stringResource(R.string.lock_auth_message)
 
                     } else {
 
-                        "Device authentication is not available. Set up a screen lock or biometric authentication in Android settings."
+                        stringResource(R.string.lock_not_available)
                     },
 
                 style =
@@ -198,7 +200,7 @@ fun LockScreen(
 
                     Text(
                         text =
-                            "Unlock Diary",
+                            stringResource(R.string.unlock_diary),
 
                         style =
                             MaterialTheme
@@ -242,7 +244,7 @@ fun LockScreen(
 
                     Text(
                         text =
-                            "Open Device Security",
+                            stringResource(R.string.open_device_security),
 
                         style =
                             MaterialTheme

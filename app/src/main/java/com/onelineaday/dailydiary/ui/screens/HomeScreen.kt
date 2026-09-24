@@ -90,6 +90,19 @@ fun HomeScreen(
         }
     }
     
+    // When selected date changes, reset the form
+    LaunchedEffect(uiState.selectedDate) {
+        entryText = ""
+        selectedMoodName = Mood.NEUTRAL.name
+        photoUri = null
+        draftMediaUris = arrayListOf()
+        draftTags = arrayListOf()
+        draftAudioUri = null
+        isEditing = false
+    }
+    
+    var showDatePicker by remember { mutableStateOf(false) }
+    
     val today = LocalDate.now()
     val dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMMM d")
     
@@ -132,17 +145,31 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        text = stringResource(R.string.today),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = today.format(dateFormatter),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val isToday = uiState.selectedDate == today
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isToday) stringResource(R.string.today) else uiState.selectedDate.format(dateFormatter),
+                            style = if (isToday) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Rounded.CalendarMonth, contentDescription = "Select Date")
+                        }
+                    }
+                    if (isToday) {
+                        Text(
+                            text = today.format(dateFormatter),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        AssistChip(
+                            onClick = { viewModel.setSelectedDate(today) },
+                            label = { Text("Back to Today") },
+                            leadingIcon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
                     val activeJournalName = uiState.journals.firstOrNull { it.id == uiState.activeJournalId }?.name
                     if (uiState.journals.size > 1 && activeJournalName != null) {
                         Text(
@@ -547,6 +574,43 @@ fun HomeScreen(
         PremiumDialog(
             onDismiss = { showPremiumDialog = false }
         )
+    }
+    
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val date = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                    return !date.isAfter(LocalDate.now())
+                }
+            }
+        )
+        
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDatePicker = false
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val date = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneOffset.UTC)
+                                .toLocalDate()
+                            viewModel.setSelectedDate(date)
+                        }
+                    }
+                ) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }
 

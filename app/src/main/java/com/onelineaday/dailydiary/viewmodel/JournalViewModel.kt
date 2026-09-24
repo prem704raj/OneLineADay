@@ -9,6 +9,7 @@ import com.onelineaday.dailydiary.backup.BackupArchiveManager
 import com.onelineaday.dailydiary.backup.BackupExportResult
 import com.onelineaday.dailydiary.backup.BackupRestoreResult
 import com.onelineaday.dailydiary.data.*
+import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.media.MediaStorageManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -89,9 +90,10 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun refreshToday() {
         val now = LocalDate.now()
         if (_todayDate.value != now) {
+            val wasTrackingToday = _selectedDate.value == _todayDate.value
             _todayDate.value = now
 
-            if (_selectedDate.value.isBefore(now)) {
+            if (wasTrackingToday) {
                 _selectedDate.value = now
                 _uiState.update { it.copy(selectedDate = now) }
             }
@@ -227,13 +229,13 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 cleanupNoLongerReferenced(existingEntry, entry)
                 _uiState.update {
                     it.copy(
-                        message = "Entry saved!",
+                        message = getApplication<Application>().getString(R.string.entry_saved),
                         entrySaved = true
                     )
                 }
             } catch (t: Throwable) {
                 _uiState.update {
-                    it.copy(message = "Could not save entry.")
+                    it.copy(message = getApplication<Application>().getString(R.string.save_failed))
                 }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
@@ -251,7 +253,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteEntry(entry)
             com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
-            _uiState.update { it.copy(message = "Entry deleted (Shake to undo)") }
+            _uiState.update { it.copy(message = getApplication<Application>().getString(R.string.entry_deleted_undo)) }
         }
     }
     
@@ -277,7 +279,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             repository.saveEntry(updatedEntry)
             com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
             cleanupNoLongerReferenced(entry, updatedEntry)
-            _uiState.update { it.copy(message = "Entry updated!") }
+            _uiState.update { it.copy(message = getApplication<Application>().getString(R.string.entry_updated)) }
         }
     }
     
@@ -285,7 +287,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val updatedEntry = entry.copy(isPinned = !entry.isPinned)
             repository.saveEntry(updatedEntry)
-            _uiState.update { it.copy(message = if (updatedEntry.isPinned) "Entry pinned" else "Entry unpinned") }
+            _uiState.update { it.copy(message = if (updatedEntry.isPinned) getApplication<Application>().getString(R.string.entry_pinned) else getApplication<Application>().getString(R.string.entry_unpinned)) }
         }
     }
     
@@ -297,7 +299,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             }
             repository.deleteEntryByDate(date, _activeJournalId.value)
             com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
-            _uiState.update { it.copy(message = "Entry deleted (Shake to undo)") }
+            _uiState.update { it.copy(message = getApplication<Application>().getString(R.string.entry_deleted_undo)) }
         }
     }
     
@@ -307,7 +309,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.saveEntry(entryToRestore)
             com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
-            _uiState.update { it.copy(message = "Entry restored!") }
+            _uiState.update { it.copy(message = getApplication<Application>().getString(R.string.entry_restored)) }
             loadData(_activeJournalId.value)
         }
     }
