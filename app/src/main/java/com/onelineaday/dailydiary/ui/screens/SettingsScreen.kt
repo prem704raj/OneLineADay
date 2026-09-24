@@ -84,6 +84,10 @@ fun SettingsScreen(
     var reminderHour by remember { mutableStateOf(prefs.getInt("reminder_hour", 20)) }
     var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
     var appLockEnabled by remember { mutableStateOf(prefs.getBoolean("app_lock", false)) }
+    var pinSetupState by remember { mutableStateOf<String?>(null) }
+    var tempPin by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    var hasPin by remember { mutableStateOf(com.onelineaday.dailydiary.security.AppLockManager.hasPin(context)) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showPremiumDialog by remember { mutableStateOf(false) }
@@ -552,6 +556,48 @@ fun SettingsScreen(
                             }
                         }
                     )
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    if (hasPin) {
+                        SettingsItem(
+                            icon = Icons.Rounded.Password,
+                            title = stringResource(R.string.change_pin),
+                            subtitle = stringResource(R.string.pin_subtitle),
+                            onClick = { 
+                                pinSetupState = "CHANGE_VERIFY"
+                                pinError = null
+                            }
+                        )
+                        
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                        
+                        SettingsItem(
+                            icon = Icons.Rounded.Delete,
+                            title = stringResource(R.string.remove_pin),
+                            subtitle = stringResource(R.string.pin_subtitle),
+                            onClick = { 
+                                pinSetupState = "REMOVE_VERIFY"
+                                pinError = null
+                            }
+                        )
+                    } else {
+                        SettingsItem(
+                            icon = Icons.Rounded.Password,
+                            title = stringResource(R.string.set_pin),
+                            subtitle = stringResource(R.string.pin_subtitle),
+                            onClick = { 
+                                pinSetupState = "SETUP_NEW"
+                                pinError = null
+                            }
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -645,6 +691,47 @@ fun SettingsScreen(
                         isLoading = isRestoringBackup,
                         onClick = { 
                             importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+                        }
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Cloud Backup Section
+                SettingsSection(title = stringResource(R.string.cloud_backup)) {
+                    var autoBackupEnabled by remember { mutableStateOf(prefs.getBoolean("auto_backup_enabled", false)) }
+                    SettingsToggleItem(
+                        icon = Icons.Rounded.CloudUpload,
+                        title = stringResource(R.string.auto_backup),
+                        subtitle = stringResource(R.string.auto_backup_subtitle),
+                        isChecked = autoBackupEnabled,
+                        onCheckedChange = { enabled ->
+                            autoBackupEnabled = enabled
+                            prefs.edit().putBoolean("auto_backup_enabled", enabled).apply()
+                            val cloudBackupManager = com.onelineaday.dailydiary.backup.CloudBackupManager(context)
+                            if (enabled) {
+                                cloudBackupManager.scheduleAutoBackup(24)
+                            } else {
+                                cloudBackupManager.cancelAutoBackup()
+                            }
+                        }
+                    )
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    
+                    val lastBackup = prefs.getLong("last_auto_backup", 0L)
+                    val lastBackupStr = if (lastBackup > 0) java.text.DateFormat.getDateTimeInstance().format(java.util.Date(lastBackup)) else stringResource(R.string.never_backed_up)
+                    
+                    SettingsItem(
+                        icon = Icons.Rounded.Backup,
+                        title = stringResource(R.string.backup_now),
+                        subtitle = stringResource(R.string.last_backup, lastBackupStr),
+                        isLoading = isExportingBackup,
+                        onClick = { 
+                            showBackupPrivacyDialog = true
                         }
                     )
                 }
@@ -1044,6 +1131,82 @@ fun SettingsScreen(
         com.onelineaday.dailydiary.ui.components.PremiumDialog(
             onDismiss = { showPremiumDialog = false }
         )
+    }
+
+    if (pinSetupState != null) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { 
+                pinSetupState = null 
+                pinError = null
+            },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    IconButton(
+                        onClick = { 
+                            pinSetupState = null 
+                            pinError = null
+                        },
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                    ) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                    
+                    val title = when (pinSetupState) {
+                        "SETUP_NEW", "CHANGE_NEW" -> stringResource(R.string.set_pin)
+                        "SETUP_CONFIRM", "CHANGE_CONFIRM" -> stringResource(R.string.confirm_pin)
+                        "CHANGE_VERIFY", "REMOVE_VERIFY" -> stringResource(R.string.enter_pin)
+                        else -> ""
+                    }
+                    
+                    com.onelineaday.dailydiary.ui.components.PinEntryScreen(
+                        title = title,
+                        subtitle = stringResource(R.string.pin_subtitle),
+                        errorMessage = pinError,
+                        onPinComplete = { enteredPin ->
+                            when (pinSetupState) {
+                                "SETUP_NEW", "CHANGE_NEW" -> {
+                                    tempPin = enteredPin
+                                    pinSetupState = if (pinSetupState == "SETUP_NEW") "SETUP_CONFIRM" else "CHANGE_CONFIRM"
+                                    pinError = null
+                                }
+                                "SETUP_CONFIRM", "CHANGE_CONFIRM" -> {
+                                    if (enteredPin == tempPin) {
+                                        com.onelineaday.dailydiary.security.AppLockManager.setPin(context, enteredPin)
+                                        hasPin = true
+                                        pinSetupState = null
+                                        Toast.makeText(context, context.getString(R.string.pin_set_success), Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        pinError = context.getString(R.string.pin_mismatch)
+                                        pinSetupState = if (pinSetupState == "SETUP_CONFIRM") "SETUP_NEW" else "CHANGE_NEW"
+                                    }
+                                }
+                                "CHANGE_VERIFY", "REMOVE_VERIFY" -> {
+                                    if (com.onelineaday.dailydiary.security.AppLockManager.verifyPin(context, enteredPin)) {
+                                        if (pinSetupState == "CHANGE_VERIFY") {
+                                            pinSetupState = "CHANGE_NEW"
+                                            pinError = null
+                                        } else {
+                                            com.onelineaday.dailydiary.security.AppLockManager.removePin(context)
+                                            hasPin = false
+                                            pinSetupState = null
+                                            Toast.makeText(context, context.getString(R.string.pin_removed), Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        pinError = context.getString(R.string.wrong_pin)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 

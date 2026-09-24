@@ -145,11 +145,12 @@ class MainActivity : FragmentActivity() {
              * -------------------------
              */
 
-            var appLockEnabled by remember {
+            var lockType by remember {
+                mutableStateOf(AppLockManager.getLockType(context))
+            }
 
-                mutableStateOf(
-                    AppLockManager.isEnabled(context)
-                )
+            var appLockEnabled by remember {
+                mutableStateOf(lockType != AppLockManager.LockType.NONE)
             }
 
             /*
@@ -157,10 +158,7 @@ class MainActivity : FragmentActivity() {
              * application started, start locked.
              */
             var isUnlocked by remember {
-
-                mutableStateOf(
-                    !appLockEnabled
-                )
+                mutableStateOf(!appLockEnabled)
             }
 
             /*
@@ -168,7 +166,6 @@ class MainActivity : FragmentActivity() {
              * from being opened simultaneously.
              */
             var authenticationInProgress by remember {
-
                 mutableStateOf(false)
             }
 
@@ -176,7 +173,6 @@ class MainActivity : FragmentActivity() {
              * Error shown on LockScreen.
              */
             var authenticationError by remember {
-
                 mutableStateOf<String?>(null)
             }
 
@@ -191,39 +187,25 @@ class MainActivity : FragmentActivity() {
              * whether App Lock was enabled/disabled.
              */
             DisposableEffect(prefs) {
+                val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                    if (key == AppLockManager.KEY_APP_LOCK || key == AppLockManager.KEY_PIN_HASH) {
+                        val newLockType = AppLockManager.getLockType(context)
+                        val enabled = newLockType != AppLockManager.LockType.NONE
+                        lockType = newLockType
+                        appLockEnabled = enabled
 
-                val listener =
-                    android.content.SharedPreferences
-                        .OnSharedPreferenceChangeListener {
-                                _,
-                                key ->
-
-                            if (
-                                key ==
-                                AppLockManager.KEY_APP_LOCK
-                            ) {
-
-                                val enabled =
-                                    AppLockManager
-                                        .isEnabled(context)
-
-                                appLockEnabled =
-                                    enabled
-
-                                /*
-                                 * If the user disables App Lock
-                                 * after authenticating, make sure
-                                 * the application becomes unlocked.
-                                 */
-                                if (!enabled) {
-                                    isUnlocked = true
-                                }
-                            }
+                        /*
+                         * If the user disables App Lock
+                         * after authenticating, make sure
+                         * the application becomes unlocked.
+                         */
+                        if (!enabled) {
+                            isUnlocked = true
                         }
+                    }
+                }
 
-                prefs.registerOnSharedPreferenceChangeListener(
-                    listener
-                )
+                prefs.registerOnSharedPreferenceChangeListener(listener)
 
                 onDispose {
 
@@ -441,6 +423,17 @@ class MainActivity : FragmentActivity() {
 
                             onUnlockClick =
                                 showUnlockPrompt,
+
+                            lockType = lockType,
+                            
+                            onPinComplete = { pin ->
+                                if (AppLockManager.verifyPin(context, pin)) {
+                                    isUnlocked = true
+                                    authenticationError = null
+                                } else {
+                                    authenticationError = context.getString(R.string.wrong_pin)
+                                }
+                            },
 
                             onOpenSecuritySettings = {
 

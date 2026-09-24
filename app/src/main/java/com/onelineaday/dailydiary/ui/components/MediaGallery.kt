@@ -29,8 +29,10 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.ui.theme.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import java.io.File
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaGallery(
     mediaUris: List<String>,
@@ -40,6 +42,13 @@ fun MediaGallery(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    
+    var showViewer by remember { mutableStateOf(false) }
+    var viewerIndex by remember { mutableIntStateOf(0) }
+    
+    val imageUris = remember(mediaUris) {
+        mediaUris.filter { !it.endsWith(".mp4") && !it.contains("video") }
+    }
     
     // Create multiple visual media picker
     val multipleMediaPicker = rememberLauncherForActivityResult(
@@ -62,7 +71,11 @@ fun MediaGallery(
                     MediaItem(
                         uriString = uriString,
                         isEditable = isEditable,
-                        onRemove = { onMediaRemoved(uriString) }
+                        onRemove = { onMediaRemoved(uriString) },
+                        onImageClick = {
+                            viewerIndex = imageUris.indexOf(uriString).coerceAtLeast(0)
+                            showViewer = true
+                        }
                     )
                 }
                 
@@ -88,13 +101,30 @@ fun MediaGallery(
             }
         }
     }
+    
+    if (showViewer && imageUris.isNotEmpty()) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showViewer = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            FullScreenImageViewer(
+                imageUris = imageUris,
+                initialIndex = viewerIndex,
+                onDismiss = { showViewer = false }
+            )
+        }
+    }
 }
 
 @Composable
 private fun MediaItem(
     uriString: String,
     isEditable: Boolean,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onImageClick: () -> Unit
 ) {
     val context = LocalContext.current
     val isVideo = uriString.endsWith(".mp4") || uriString.contains("video")
@@ -112,24 +142,28 @@ private fun MediaItem(
                 .height(200.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .clickable {
-                    // Launch intent to view media
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        val uri = if (uriString.startsWith("/")) {
-                            androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.provider",
-                                File(uriString)
-                            )
-                        } else {
-                            Uri.parse(uriString)
+                    if (isVideo) {
+                        // Launch intent to view video
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            val uri = if (uriString.startsWith("/")) {
+                                androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.provider",
+                                    File(uriString)
+                                )
+                            } else {
+                                Uri.parse(uriString)
+                            }
+                            setDataAndType(uri, "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        setDataAndType(uri, if (isVideo) "video/*" else "image/*")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    try {
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    } else {
+                        onImageClick()
                     }
                 }
         ) {

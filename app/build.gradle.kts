@@ -133,12 +133,13 @@ dependencies {
     )
 
     // -------------------------
-    // ViewModel
+    // ViewModel & WorkManager
     // -------------------------
 
     implementation(
         "androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0"
     )
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // -------------------------
     // Images / Video thumbnails

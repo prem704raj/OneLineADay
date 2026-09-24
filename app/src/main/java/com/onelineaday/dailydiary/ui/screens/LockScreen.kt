@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.onelineaday.dailydiary.R
+import com.onelineaday.dailydiary.security.AppLockManager
+import com.onelineaday.dailydiary.ui.components.PinEntryScreen
 
 @Composable
 fun LockScreen(
@@ -25,9 +27,19 @@ fun LockScreen(
     authenticationAvailable: Boolean,
     errorMessage: String? = null,
     onOpenSecuritySettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lockType: AppLockManager.LockType = AppLockManager.LockType.BIOMETRIC,
+    onPinComplete: (String) -> Unit = {}
 ) {
-
+    if (lockType == AppLockManager.LockType.PIN || lockType == AppLockManager.LockType.BOTH) {
+        PinEntryScreen(
+            title = stringResource(R.string.enter_pin),
+            subtitle = stringResource(R.string.pin_subtitle),
+            onPinComplete = onPinComplete,
+            onBiometricFallback = if (lockType == AppLockManager.LockType.BOTH) onUnlockClick else null,
+            errorMessage = errorMessage
+        )
+    } else {
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -258,4 +270,6 @@ fun LockScreen(
             }
         }
     }
+    }
 }
+

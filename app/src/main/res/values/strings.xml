@@ -13,6 +13,8 @@
     <string name="confirm">Confirm</string>
     <string name="add_photo">Add Photo</string>
     <string name="remove_photo">Remove Photo</string>
+    <string name="close_viewer">Close</string>
+    <string name="image_counter">%1$d of %2$d</string>
     <string name="export_pdf">Export to PDF</string>
     <string name="select_mood">How are you feeling?</string>
     <string name="streak">Streak</string>
@@ -40,6 +42,14 @@
     <string name="settings_data">Data</string>
     <string name="settings_export_pdf_subtitle">Download your journal as PDF</string>
     <string name="settings_backup">Backup Data</string>
+    <string name="cloud_backup">Cloud Backup</string>
+    <string name="auto_backup">Auto Backup</string>
+    <string name="auto_backup_subtitle">Automatically back up your journal daily</string>
+    <string name="backup_now">Backup Now</string>
+    <string name="last_backup">Last backup: %1$s</string>
+    <string name="never_backed_up">Never</string>
+    <string name="backup_in_progress">Backing up…</string>
+    <string name="backup_complete">Backup complete</string>
     <string name="settings_coming_soon">Coming soon</string>
     <string name="settings_version_number">4.1</string>
     <string name="settings_send_feedback">Send Feedback</string>
@@ -219,6 +229,9 @@
     <string name="lock_not_available">Device authentication is not available. Set up a screen lock or biometric authentication in Android settings.</string>
     <string name="unlock_diary">Unlock Diary</string>
     <string name="open_device_security">Open Device Security</string>
+    <string name="wrong_pin">Incorrect PIN. Try again.</string>
+    <string name="enter_pin">Enter PIN</string>
+    <string name="pin_subtitle">Enter your 4-digit PIN to unlock</string>
 
     <!-- Entry Detail -->
     <string name="entry_details">Entry Details</string>
@@ -265,6 +278,14 @@
     <string name="confirm_identity_remove">Confirm your identity before removing diary protection</string>
     <string name="app_lock_enabled_toast">App Lock enabled</string>
     <string name="app_lock_disabled_toast">App Lock disabled</string>
+    <string name="set_pin">Set PIN</string>
+    <string name="confirm_pin">Confirm PIN</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="remove_pin">Remove PIN</string>
+    <string name="pin_set_success">PIN set successfully</string>
+    <string name="pin_removed">PIN removed</string>
+    <string name="pin_mismatch">PINs don\'t match. Try again.</string>
+    <string name="use_fingerprint">Use fingerprint</string>
     <string name="restore_success">Restored %1$d memories across %2$d journals!</string>
     <string name="restore_failed">Restore failed: %1$s</string>
     <string name="backup_archive_message">This backup archive will contain your journal text, photos, videos, moods, tags, and voice notes. The app or cloud service you choose will control the copy after you share it.</string>
@@ -276,6 +297,9 @@
     <string name="filter_pinned">📌 Pinned</string>
     <string name="filter">Filter</string>
     <string name="calendar">Calendar</string>
+    <string name="no_entry_for_date">No entry for this date</string>
+    <string name="write_now">Write Now</string>
+    <string name="today_button">Today</string>
 
     <string name="throwback_title">🕰️ %1 Year(s) Ago Today…</string>
     <string name="word_char_count">%1 words • %2 characters</string>

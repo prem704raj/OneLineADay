@@ -53,6 +53,13 @@ sealed class Screen(
         unselectedIcon = Icons.Outlined.Insights
     )
     
+    data object Calendar : Screen(
+        route = "calendar",
+        titleRes = R.string.calendar,
+        selectedIcon = Icons.Filled.CalendarMonth,
+        unselectedIcon = Icons.Outlined.CalendarMonth
+    )
+    
     data object Settings : Screen(
         route = "settings",
         titleRes = R.string.settings,
@@ -64,6 +71,7 @@ sealed class Screen(
 val screens = listOf(
     Screen.Home,
     Screen.Timeline,
+    Screen.Calendar,
     Screen.Stats,
     Screen.Settings
 )
@@ -196,6 +204,29 @@ fun MainNavigation(
                 TimelineScreen(
                     viewModel = viewModel,
                     uiState = uiState
+                )
+            }
+            
+            composable(
+                route = Screen.Calendar.route,
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                CalendarScreen(
+                    viewModel = viewModel,
+                    onNavigateToDetail = { entry ->
+                        // Add navigation logic if detail screen is implemented
+                    },
+                    onNavigateToWrite = { date ->
+                        viewModel.setSelectedDate(date)
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             

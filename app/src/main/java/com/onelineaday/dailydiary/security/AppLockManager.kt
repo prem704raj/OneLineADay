@@ -23,6 +23,49 @@ object AppLockManager {
 
     const val PREFS_NAME = "settings"
     const val KEY_APP_LOCK = "app_lock"
+    const val KEY_PIN_HASH = "pin_hash"
+
+    fun setPin(context: Context, pin: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val hashedPin = hashPin(pin)
+        prefs.edit().putString(KEY_PIN_HASH, hashedPin).apply()
+    }
+
+    fun verifyPin(context: Context, pin: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val stored = prefs.getString(KEY_PIN_HASH, null) ?: return false
+        return stored == hashPin(pin)
+    }
+
+    fun hasPin(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_PIN_HASH, null) != null
+    }
+
+    fun removePin(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_PIN_HASH).apply()
+    }
+
+    private fun hashPin(pin: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        return digest.digest(pin.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    enum class LockType {
+        NONE, BIOMETRIC, PIN, BOTH
+    }
+
+    fun getLockType(context: Context): LockType {
+        val hasBiometric = isEnabled(context)
+        val hasPin = hasPin(context)
+        return when {
+            hasBiometric && hasPin -> LockType.BOTH
+            hasBiometric -> LockType.BIOMETRIC
+            hasPin -> LockType.PIN
+            else -> LockType.NONE
+        }
+    }
 
     /**
      * Class 2+ biometric OR device screen-lock credential.
@@ -34,7 +77,7 @@ object AppLockManager {
             BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     /**
-     * Whether the user enabled diary locking.
+     * Whether the user enabled biometric diary locking.
      */
     fun isEnabled(context: Context): Boolean {
         return context
@@ -43,7 +86,7 @@ object AppLockManager {
     }
 
     /**
-     * Enable/disable diary locking.
+     * Enable/disable biometric diary locking.
      *
      * This should only be called after successful authentication.
      */
