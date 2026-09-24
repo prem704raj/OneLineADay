@@ -16,16 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
 import com.onelineaday.dailydiary.ui.components.AudioPlayerView
@@ -35,7 +29,6 @@ import com.onelineaday.dailydiary.ui.components.MediaGallery
 
 import com.onelineaday.dailydiary.ui.components.getMoodColor
 import com.onelineaday.dailydiary.ui.theme.*
-import java.io.File
 import java.text.SimpleDateFormat
 import java.time.format.DateTimeFormatter
 import java.util.Date

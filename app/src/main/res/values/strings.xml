@@ -250,4 +250,41 @@
     <string name="entry_pinned">Entry pinned</string>
     <string name="entry_unpinned">Entry unpinned</string>
     <string name="entry_restored">Entry restored!</string>
+    <string name="upgrade_to_premium">Upgrade to Premium</string>
+    <string name="upgrade_to_premium_subtitle">No ads, all themes &amp; unlimited entries</string>
+    <string name="open">Open</string>
+    <string name="premium_active">Premium Active</string>
+    <string name="premium_active_subtitle">All themes &amp; ad-free features are unlocked</string>
+    <string name="app_lock_protected">Protected with device authentication</string>
+    <string name="app_lock_require_auth">Require fingerprint, face, PIN, pattern, or password</string>
+    <string name="app_lock_not_supported">App Lock is not supported on this device.</string>
+    <string name="app_lock_setup_first">Set up a fingerprint, face unlock, PIN, pattern, or password first.</string>
+    <string name="enable_app_lock">Enable App Lock</string>
+    <string name="disable_app_lock">Disable App Lock</string>
+    <string name="confirm_identity_protect">Confirm your identity before protecting your diary</string>
+    <string name="confirm_identity_remove">Confirm your identity before removing diary protection</string>
+    <string name="app_lock_enabled_toast">App Lock enabled</string>
+    <string name="app_lock_disabled_toast">App Lock disabled</string>
+    <string name="restore_success">Restored %1$d memories across %2$d journals!</string>
+    <string name="restore_failed">Restore failed: %1$s</string>
+    <string name="backup_archive_message">This backup archive will contain your journal text, photos, videos, moods, tags, and voice notes. The app or cloud service you choose will control the copy after you share it.</string>
+    <string name="share_backup_archive">Share Backup Archive</string>
+    <string name="backup_failed">Backup failed: %1$s</string>
+    <string name="export_and_share">Export &amp; Share</string>
+    <string name="my_journal_pdf_subject">My One Line A Day Journal</string>
+
+    <string name="filter_pinned">📌 Pinned</string>
+    <string name="filter">Filter</string>
+    <string name="calendar">Calendar</string>
+
+    <string name="throwback_title">🕰️ %1 Year(s) Ago Today…</string>
+    <string name="word_char_count">%1 words • %2 characters</string>
+
+    <string name="pdf_title">One Line A Day</string>
+    <string name="pdf_subtitle">Your personal journal</string>
+    <string name="pdf_entries">Entries: %1</string>
+    <string name="pdf_current_streak">Current streak: %1</string>
+    <string name="pdf_longest_streak">Longest streak: %1</string>
+    <string name="pdf_voice_attached">Voice note attached</string>
+    <string name="pdf_video_attached">Video attached</string>
 </resources>

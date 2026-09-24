@@ -8,35 +8,38 @@ A modern, privacy-focused micro-journaling application built with Jetpack Compos
 
 | Feature | Description |
 |---|---|
-| **📝 Daily Entry** | Capture your day in one single sentence in under 10 seconds |
+| **📖 Multi-Journal Support** | Create and manage multiple distinct journals for different areas of life |
+| **📅 Backdate Entries** | Capture or edit entries for past dates with quick calendar navigation |
+| **🎙️ Audio Voice Notes** | In-app audio recorder with failure-safe lifecycle, real-time waveform, and playback progress |
+| **📷 Photo & Video Attachments** | Attach photos and videos via Android's privacy-preserving Photo Picker |
 | **😊 Mood Tracking** | 10 expressive moods with animated emoji reactions and distribution charts |
-| **🎙️ Voice Memories** | In-app audio recorder with failure-safe lifecycle, real-time waveform, and playback progress |
-| **📷 Photo & Media** | Attach multiple photos and videos via Android's privacy-preserving Photo Picker |
-| **🏷️ Smart Tags** | Tag memories for progressive filtering and categorization |
-| **🔒 App Lock & Privacy** | Biometric, fingerprint, PIN, or device credential authentication with Recents screenshot protection |
-| **📅 Timeline View** | Grouped by month with quick search, tag filtering, mood chips, and date jump |
-| **🔥 Pure Streak Engine** | Non-destructive current and longest streak calculation |
-| **📊 Journey Statistics** | Weekly & monthly entry counts, calendar days remaining, mood distribution, and milestones |
-| **📤 PDF Journal Export** | Compile and share your journal entries into a clean PDF document |
-| **💾 Logical ZIP Backup & Restore** | Safe, versioned ZIP archive backup and atomic restore with checksum & traversal verification |
+| **🏷️ Tags** | Tag memories for quick categorization, search, and progressive filtering |
 | **🔔 Daily Reminders** | Configurable daily reminder notifications restored automatically on reboot |
+| **🔥 Streak Tracking** | Non-destructive current and longest streak calculation to build lasting habits |
+| **📊 Mood Trend Chart & Stats** | Visual mood trends, weekly & monthly entry counts, and milestone statistics |
+| **🗓️ Calendar Heatmap** | Interactive visual activity heatmap tracking your journaling consistency |
+| **🎉 Year in Review** | Curated annual recap summarizing memories, moods, and highlights |
+| **🔒 Biometric App Lock** | Biometric, fingerprint, PIN, or device credential authentication with Recents screenshot protection |
+| **📤 PDF Export** | Export formatted journal entries using Android native PdfDocument with StaticLayout text shaping |
+| **💾 ZIP Backup & Restore** | Safe, versioned ZIP archive backup and atomic restore with checksum & traversal verification |
+| **🎨 Dark/Light/System Theme** | WCAG AA accessible themes with support for Dark, Light, and System modes |
+| **🌍 15 Language Localization** | Full localization support across 15 languages |
 | **📱 Home Screen Widget** | Glanceable today's line on your home screen with private mode |
-| **🎨 Themes & Dark Mode** | WCAG AA accessible Sunset palette, Ocean, Forest, and Monochrome themes |
+| **📢 AdMob Integration** | AdMob integration with UMP consent management |
+| **💎 Play Billing** | Play Billing with monthly subscription and lifetime premium purchase options |
 
 ---
 
 ## 🏗️ Architecture & Technology Stack
 
-- **Language**: Kotlin 2.0+
-- **Minimum SDK**: API 26 (Android 8.0 Oreo)
-- **Target / Compile SDK**: API 36 (Android 16 Readiness)
-- **UI Framework**: Jetpack Compose with Material 3
-- **Local Persistence**: Room Database (Schema v5) with SQLite Foreign Key constraints
-- **Concurrency & Reactivity**: Kotlin Coroutines & StateFlow / SharedFlow
-- **Image & Video Loading**: Coil Compose & Coil Video
-- **PDF Generation**: iText 7
-- **In-App Billing**: Google Play Billing Library
-- **Advertising**: Google Mobile Ads SDK with UMP Privacy Consent integration
+- **Architecture**: MVVM with AndroidViewModel
+- **UI Framework**: Jetpack Compose Material 3
+- **Local Persistence**: Room database with migrations 1-5
+- **Concurrency & Reactivity**: Kotlin Coroutines + Flow
+- **Image Loading**: Coil for images
+- **PDF Generation**: Android native PdfDocument with StaticLayout text shaping
+- **In-App Billing**: Play Billing 9.1 (monthly + lifetime premium)
+- **Advertising**: AdMob integration with UMP consent
 - **App Lock**: AndroidX Biometric 1.1.0
 
 ---
@@ -61,11 +64,11 @@ app/src/main/
 │   │   ├── components/               # MoodPicker, AudioAttachment, MediaGallery, TagInput, etc.
 │   │   ├── screens/                  # HomeScreen, TimelineScreen, StatsScreen, SettingsScreen, Nav
 │   │   └── theme/                    # Color.kt (WCAG AA accessible), Theme.kt, Type.kt
-│   ├── utils/                        # StreakCalculator, DateFormatters
+│   ├── utils/                        # StreakCalculator, DateFormatters, PdfExportHelper, ShareImageHelper
 │   ├── viewmodel/                    # JournalViewModel with single-flight saves & cancellable jobs
 │   └── widget/                       # JournalWidget provider & layout
 └── res/
-    ├── values/                       # strings.xml, colors, themes
+    ├── values/                       # strings.xml, colors, themes (15 language localizations)
     ├── layout/                       # widget_journal.xml
     └── xml/                          # backup_rules.xml, data_extraction_rules.xml, widget_info.xml
 ```
@@ -96,7 +99,11 @@ The application declares the following permissions in `AndroidManifest.xml`:
 ### Prerequisites
 - Android Studio Ladybug (2024.2.1+) or newer
 - JDK 17
-- Android SDK Platform 36
+- Gradle 9.5.0
+- AGP 9.2.1
+- Kotlin 2.1.20
+- Target SDK 36 (Android 16)
+- Min SDK 26 (Android 8.0)
 
 ### Build Commands
 ```bash

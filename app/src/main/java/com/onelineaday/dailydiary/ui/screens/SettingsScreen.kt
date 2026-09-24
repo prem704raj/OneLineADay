@@ -37,9 +37,7 @@ import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.ads.AdsConsentManager
 import com.onelineaday.dailydiary.ads.RewardedAdManager
 import com.onelineaday.dailydiary.ui.components.JournalSwitcherCard
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.onelineaday.dailydiary.ads.BannerAdView
@@ -53,11 +51,7 @@ import com.onelineaday.dailydiary.backup.BackupExportResult
 import com.onelineaday.dailydiary.backup.BackupRestoreResult
 import com.onelineaday.dailydiary.utils.PdfExportHelper
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -152,14 +146,14 @@ fun SettingsScreen(
                     is BackupRestoreResult.Success -> {
                         Toast.makeText(
                             context,
-                            "Restored ${result.restoredEntries} memories across ${result.restoredJournals} journals!",
+                            context.getString(R.string.restore_success, result.restoredEntries, result.restoredJournals),
                             Toast.LENGTH_LONG
                         ).show()
                     }
                     is BackupRestoreResult.Failure -> {
                         Toast.makeText(
                             context,
-                            "Restore failed: ${result.reason}",
+                            context.getString(R.string.restore_failed, result.reason),
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -264,7 +258,7 @@ fun SettingsScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.WorkspacePremium,
-                                        contentDescription = "Go Premium",
+                                        contentDescription = stringResource(R.string.premium_go_premium),
                                         tint = Color.White,
                                         modifier = Modifier.size(28.dp)
                                     )
@@ -272,20 +266,20 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(14.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Upgrade to Premium",
+                                        text = stringResource(R.string.upgrade_to_premium),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "No ads, all themes & unlimited entries",
+                                        text = stringResource(R.string.upgrade_to_premium_subtitle),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.White.copy(alpha = 0.9f)
                                     )
                                 }
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                    contentDescription = "Open",
+                                    contentDescription = stringResource(R.string.open),
                                     tint = Color.White
                                 )
                             }
@@ -315,7 +309,7 @@ fun SettingsScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.CheckCircle,
-                                    contentDescription = "Premium Active",
+                                    contentDescription = stringResource(R.string.premium_active),
                                     tint = Color.White,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -323,13 +317,13 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Premium Active",
+                                    text = stringResource(R.string.premium_active),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "All themes & ad-free features are unlocked",
+                                    text = stringResource(R.string.premium_active_subtitle),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -478,9 +472,9 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Lock,
                         title = stringResource(R.string.settings_app_lock),
                         subtitle = if (appLockEnabled) {
-                            "Protected with device authentication"
+                            stringResource(R.string.app_lock_protected)
                         } else {
-                            "Require fingerprint, face, PIN, pattern, or password"
+                            stringResource(R.string.app_lock_require_auth)
                         },
                         isChecked = appLockEnabled,
                         onCheckedChange = { shouldEnable ->
@@ -488,7 +482,7 @@ fun SettingsScreen(
                             if (activity == null) {
                                 Toast.makeText(
                                     context,
-                                    "App Lock is not supported on this device.",
+                                    context.getString(R.string.app_lock_not_supported),
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else if (!AppLockManager.canAuthenticate(context)) {
@@ -500,7 +494,7 @@ fun SettingsScreen(
                                  */
                                 Toast.makeText(
                                     context,
-                                    "Set up a fingerprint, face unlock, PIN, pattern, or password first.",
+                                    context.getString(R.string.app_lock_setup_first),
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
@@ -515,14 +509,14 @@ fun SettingsScreen(
                                 AppLockManager.authenticate(
                                     activity = activity,
                                     title = if (shouldEnable) {
-                                        "Enable App Lock"
+                                        context.getString(R.string.enable_app_lock)
                                     } else {
-                                        "Disable App Lock"
+                                        context.getString(R.string.disable_app_lock)
                                     },
                                     subtitle = if (shouldEnable) {
-                                        "Confirm your identity before protecting your diary"
+                                        context.getString(R.string.confirm_identity_protect)
                                     } else {
-                                        "Confirm your identity before removing diary protection"
+                                        context.getString(R.string.confirm_identity_remove)
                                     },
                                     onSuccess = {
                                         AppLockManager.setEnabled(
@@ -534,9 +528,9 @@ fun SettingsScreen(
                                         Toast.makeText(
                                             context,
                                             if (shouldEnable) {
-                                                "App Lock enabled"
+                                                context.getString(R.string.app_lock_enabled_toast)
                                             } else {
-                                                "App Lock disabled"
+                                                context.getString(R.string.app_lock_disabled_toast)
                                             },
                                             Toast.LENGTH_SHORT
                                         ).show()
@@ -844,12 +838,12 @@ fun SettingsScreen(
             },
             title = {
                 Text(
-                    text = "Export Backup",
+                    text = stringResource(R.string.settings_export_backup),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Text("This backup archive will contain your journal text, photos, videos, moods, tags, and voice notes. The app or cloud service you choose will control the copy after you share it.")
+                Text(stringResource(R.string.backup_archive_message))
             },
             confirmButton = {
                 TextButton(
@@ -864,17 +858,17 @@ fun SettingsScreen(
                                         putExtra(Intent.EXTRA_STREAM, result.uri)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    context.startActivity(Intent.createChooser(intent, "Share Backup Archive"))
+                                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_backup_archive)))
                                 }
                                 is BackupExportResult.Failure -> {
-                                    Toast.makeText(context, "Backup failed: ${result.reason}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, context.getString(R.string.backup_failed, result.reason), Toast.LENGTH_LONG).show()
                                 }
                             }
                             isExportingBackup = false
                         }
                     }
                 ) {
-                    Text("Export & Share")
+                    Text(stringResource(R.string.export_and_share))
                 }
             },
             dismissButton = {
@@ -1246,9 +1240,9 @@ private fun sharePdf(context: Context, uri: android.net.Uri) {
     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "application/pdf"
         putExtra(android.content.Intent.EXTRA_STREAM, uri)
-        putExtra(android.content.Intent.EXTRA_SUBJECT, "My One Line A Day Journal")
+        putExtra(android.content.Intent.EXTRA_SUBJECT, context.getString(R.string.my_journal_pdf_subject))
         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     
-    context.startActivity(android.content.Intent.createChooser(intent, "Share Journal PDF"))
+    context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.toast_share_pdf)))
 }

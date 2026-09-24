@@ -1,14 +1,11 @@
 package com.onelineaday.dailydiary.ui.screens
 
-import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -21,9 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.onelineaday.dailydiary.R
-import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
 import com.onelineaday.dailydiary.ui.components.*
 import com.onelineaday.dailydiary.ui.components.PhotoAttachment
@@ -42,7 +36,6 @@ import com.onelineaday.dailydiary.ui.theme.*
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
 import com.onelineaday.dailydiary.ads.BannerAdView
 import android.app.Activity
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -191,7 +184,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.WorkspacePremium,
-                            contentDescription = "Go Premium",
+                            contentDescription = stringResource(R.string.premium_go_premium),
                             tint = Color(0xFFFFA500)
                         )
                     }
@@ -204,7 +197,7 @@ fun HomeScreen(
             if (throwback != null) {
                 val (yearsAgo, entry) = throwback
                 Text(
-                    text = "🕰️ $yearsAgo Year${if (yearsAgo > 1) "s" else ""} Ago Today...",
+                    text = stringResource(R.string.throwback_title, yearsAgo),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -330,7 +323,7 @@ fun HomeScreen(
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "${entryText.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }} words • ${entryText.length} characters",
+                            text = stringResource(R.string.word_char_count, entryText.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }, entryText.length),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.align(Alignment.End)

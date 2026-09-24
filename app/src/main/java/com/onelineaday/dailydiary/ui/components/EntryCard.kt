@@ -23,21 +23,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
-import coil.compose.AsyncImagePainter
 import coil.compose.AsyncImage
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.data.Mood
 import com.onelineaday.dailydiary.ui.theme.*
 import java.io.File
 import java.time.format.DateTimeFormatter
-import java.time.Instant
-import java.time.ZoneId
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun EntryCard(

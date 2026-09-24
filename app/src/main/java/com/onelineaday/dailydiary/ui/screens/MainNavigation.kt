@@ -18,8 +18,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
-import com.onelineaday.dailydiary.ads.InterstitialAdManager
-import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay

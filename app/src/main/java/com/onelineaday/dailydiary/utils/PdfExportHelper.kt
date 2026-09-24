@@ -15,6 +15,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.core.content.FileProvider
 import com.onelineaday.dailydiary.data.JournalEntry
+import com.onelineaday.dailydiary.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -51,7 +52,7 @@ object PdfExportHelper {
         val pdf = PdfDocument()
 
         try {
-            val renderer = JournalPdfRenderer(pdf = pdf)
+            val renderer = JournalPdfRenderer(context = context, pdf = pdf)
 
             renderer.drawCover(
                 entries = entries,
@@ -82,6 +83,7 @@ object PdfExportHelper {
     }
 
     private class JournalPdfRenderer(
+        private val context: Context,
         private val pdf: PdfDocument
     ) {
         private var pageNumber = 0
@@ -127,13 +129,13 @@ object PdfExportHelper {
             y = 180f
 
             drawText(
-                text = "One Line A Day",
+                text = context.getString(R.string.pdf_title),
                 paint = titlePaint,
                 spacingAfter = 14f
             )
 
             drawText(
-                text = "Your personal journal",
+                text = context.getString(R.string.pdf_subtitle),
                 paint = bodyPaint,
                 spacingAfter = 28f
             )
@@ -154,17 +156,17 @@ object PdfExportHelper {
             )
 
             drawText(
-                text = "Entries: $totalEntries",
+                text = context.getString(R.string.pdf_entries, totalEntries),
                 paint = headingPaint
             )
 
             drawText(
-                text = "Current streak: $currentStreak",
+                text = context.getString(R.string.pdf_current_streak, currentStreak),
                 paint = bodyPaint
             )
 
             drawText(
-                text = "Longest streak: $longestStreak",
+                text = context.getString(R.string.pdf_longest_streak, longestStreak),
                 paint = bodyPaint
             )
 
@@ -205,7 +207,7 @@ object PdfExportHelper {
 
             if (!entry.audioUri.isNullOrBlank()) {
                 drawText(
-                    text = "Voice note attached",
+                    text = context.getString(R.string.pdf_voice_attached),
                     paint = mutedPaint,
                     spacingAfter = 6f
                 )
@@ -215,7 +217,7 @@ object PdfExportHelper {
             media.forEach { path ->
                 if (isLikelyVideo(path)) {
                     drawText(
-                        text = "Video attached",
+                        text = context.getString(R.string.pdf_video_attached),
                         paint = mutedPaint,
                         spacingAfter = 6f
                     )

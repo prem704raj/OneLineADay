@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.onelineaday.dailydiary.R
@@ -31,12 +30,9 @@ import com.onelineaday.dailydiary.ui.components.MediaGallery
 import com.onelineaday.dailydiary.ui.components.*
 import com.onelineaday.dailydiary.ui.theme.*
 import com.onelineaday.dailydiary.ads.BannerAdView
-import android.app.Activity
 import com.onelineaday.dailydiary.viewmodel.JournalUiState
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.rememberCoroutineScope
@@ -187,7 +183,7 @@ fun TimelineScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.FilterList,
-                                    contentDescription = "Filter",
+                                    contentDescription = stringResource(R.string.filter),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
@@ -202,7 +198,7 @@ fun TimelineScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.CalendarMonth,
-                                    contentDescription = "Calendar",
+                                    contentDescription = stringResource(R.string.calendar),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
@@ -258,7 +254,7 @@ fun TimelineScreen(
                             FilterChip(
                                 selected = showOnlyPinned,
                                 onClick = { showOnlyPinned = !showOnlyPinned },
-                                label = { Text("📌 Pinned") },
+                                label = { Text(stringResource(R.string.filter_pinned)) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -318,7 +314,7 @@ fun TimelineScreen(
                             
                             Text(
                                 text = if (searchQuery.isNotEmpty()) 
-                                    "No entries found" 
+                                    stringResource(R.string.timeline_no_entries_found) 
                                 else 
                                     stringResource(R.string.timeline_your_timeline_awaits),
                                 style = MaterialTheme.typography.titleLarge,
