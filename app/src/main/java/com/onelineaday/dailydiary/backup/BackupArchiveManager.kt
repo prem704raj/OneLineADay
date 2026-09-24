@@ -121,14 +121,13 @@ class BackupArchiveManager(
                 fun descriptorFor(
                     path: String,
                     kind: BackupFileKind
-                ): BackupFileDto =
-                    sourceToDescriptor.getOrPut(path) {
-                        val file = File(path)
-
-                        require(file.exists() && file.isFile) {
-                            "A referenced attachment is missing: $path"
-                        }
-
+                ): BackupFileDto? {
+                    val file = File(path)
+                    if (!file.exists() || !file.isFile) {
+                        android.util.Log.w("BackupArchiveManager", "Skipping missing attachment: $path")
+                        return null
+                    }
+                    return sourceToDescriptor.getOrPut(path) {
                         require(file.length() <= MAX_SINGLE_FILE_BYTES) {
                             "An attachment exceeds the supported size."
                         }
@@ -149,24 +148,25 @@ class BackupArchiveManager(
                             sha256 = sha256(file)
                         )
                     }
+                }
 
                 val entryDtos =
                     snapshot.entries.map { entry ->
                         val photoId =
                             entry.photoUri
                                 ?.takeIf { it.startsWith("/") }
-                                ?.let { descriptorFor(it, BackupFileKind.MEDIA).id }
+                                ?.let { descriptorFor(it, BackupFileKind.MEDIA)?.id }
 
                         val mediaIds =
                             entry.mediaUris
                                 .filter { it.startsWith("/") }
                                 .distinct()
-                                .map { descriptorFor(it, BackupFileKind.MEDIA).id }
+                                .mapNotNull { descriptorFor(it, BackupFileKind.MEDIA)?.id }
 
                         val audioId =
                             entry.audioUri
                                 ?.takeIf { it.startsWith("/") }
-                                ?.let { descriptorFor(it, BackupFileKind.AUDIO).id }
+                                ?.let { descriptorFor(it, BackupFileKind.AUDIO)?.id }
 
                         BackupEntryDto(
                             date = entry.date.toString(),

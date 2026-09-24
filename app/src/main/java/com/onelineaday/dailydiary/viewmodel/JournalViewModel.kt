@@ -223,6 +223,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                     }
 
                 repository.saveEntry(entry)
+                com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
                 cleanupNoLongerReferenced(existingEntry, entry)
                 _uiState.update {
                     it.copy(
@@ -249,6 +250,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         lastDeletedEntry = entry
         viewModelScope.launch {
             repository.deleteEntry(entry)
+            com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
             _uiState.update { it.copy(message = "Entry deleted (Shake to undo)") }
         }
     }
@@ -273,6 +275,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 updatedAt = System.currentTimeMillis()
             )
             repository.saveEntry(updatedEntry)
+            com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
             cleanupNoLongerReferenced(entry, updatedEntry)
             _uiState.update { it.copy(message = "Entry updated!") }
         }
@@ -293,6 +296,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 lastDeletedEntry = entry
             }
             repository.deleteEntryByDate(date, _activeJournalId.value)
+            com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
             _uiState.update { it.copy(message = "Entry deleted (Shake to undo)") }
         }
     }
@@ -302,6 +306,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         lastDeletedEntry = null
         viewModelScope.launch {
             repository.saveEntry(entryToRestore)
+            com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
             _uiState.update { it.copy(message = "Entry restored!") }
             loadData(_activeJournalId.value)
         }
@@ -393,40 +398,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         mediaStorage.cleanupOrphans(referenced)
     }
     
-    fun getEntriesForMonth(year: Int, month: Int): List<JournalEntry> {
-        val startDate = LocalDate.of(year, month, 1)
-        val endDate = startDate.plusMonths(1).minusDays(1)
-        
-        return _uiState.value.entries.filter { entry ->
-            entry.date >= startDate && entry.date <= endDate
-        }
-    }
-    
-    fun getFormattedDate(date: LocalDate): String {
-        val today = LocalDate.now()
-        val yesterday = today.minusDays(1)
-        
-        return when (date) {
-            today -> "Today"
-            yesterday -> "Yesterday"
-            else -> date.format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy"))
-        }
-    }
-    
-    fun getRelativeDate(date: LocalDate): String {
-        val today = LocalDate.now()
-        val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(date, today).toInt()
-        
-        return when {
-            daysDiff == 0 -> "Today"
-            daysDiff == 1 -> "Yesterday"
-            daysDiff < 7 -> "$daysDiff days ago"
-            daysDiff < 30 -> "${daysDiff / 7} weeks ago"
-            daysDiff < 365 -> "${daysDiff / 30} months ago"
-            else -> "${daysDiff / 365} years ago"
-        }
-    }
-    
+
     suspend fun exportBackup(): BackupExportResult {
         return backupManager.exportBackup()
     }
@@ -440,33 +412,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         return result
     }
 
-    @Deprecated("Use suspend exportBackup() for safe logical backup")
-    fun exportBackup(context: Context): Uri? {
-        var resultUri: Uri? = null
-        kotlinx.coroutines.runBlocking {
-            val res = exportBackup()
-            if (res is BackupExportResult.Success) {
-                resultUri = res.uri
-            }
-        }
-        return resultUri
-    }
-    
-    @Deprecated("Use suspend restoreBackup(backupUri) for safe staged restore")
-    fun importBackup(context: Context, backupUri: Uri) {
-        viewModelScope.launch {
-            val result = restoreBackup(backupUri)
-            when (result) {
-                is BackupRestoreResult.Success -> {
-                    _uiState.update { it.copy(message = "Backup restored successfully!") }
-                }
-                is BackupRestoreResult.Failure -> {
-                    _uiState.update { it.copy(message = "Restore failed: ${result.reason}") }
-                }
-            }
-        }
-    }
-    
+
     suspend fun exportToPdf(context: Context): Uri? {
         val state = _uiState.value
         return com.onelineaday.dailydiary.utils.PdfExportHelper.generateJournalPdf(

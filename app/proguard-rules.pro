@@ -28,3 +28,13 @@
 # Keep Biometric
 -keep class androidx.biometric.** { *; }
 -dontwarn androidx.biometric.**
+
+# Keep backup archive data classes for Gson serialization
+-keep class com.onelineaday.dailydiary.backup.** { *; }
+
+# Strip debug logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int w(...);
+    public static int v(...);
+}

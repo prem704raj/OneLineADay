@@ -10,11 +10,15 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.onelineaday.dailydiary.PremiumManager
+import com.onelineaday.dailydiary.BuildConfig
 
 object RewardedAdManager {
 
     private const val TAG = "RewardedAdManager"
-    private const val AD_UNIT_ID = "ca-app-pub-8204679574020840/8271044708"
+    private val AD_UNIT_ID = if (BuildConfig.DEBUG)
+        "ca-app-pub-3940256099942544/5224354917"  // Google test rewarded
+    else
+        "ca-app-pub-8204679574020840/8271044708"  // Production
 
     private var rewardedAd: RewardedAd? = null
     private var loading = false

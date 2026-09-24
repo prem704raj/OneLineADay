@@ -194,7 +194,7 @@ fun EntryCard(
                     }
                     
                     Spacer(modifier = Modifier.height(12.dp))
-                    AudioPlayerView(dateKey = entry.date.toString())
+                    AudioPlayerView(audioUri = entry.audioUri, dateKey = entry.date.toString())
                 }
                 
                 val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }

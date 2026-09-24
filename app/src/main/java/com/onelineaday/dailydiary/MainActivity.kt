@@ -239,6 +239,8 @@ class MainActivity : FragmentActivity() {
              * into background
              * -------------------------
              */
+            var lastStopTime by remember { mutableStateOf(0L) }
+
             DisposableEffect(
                 lifecycleOwner,
                 appLockEnabled
@@ -255,8 +257,16 @@ class MainActivity : FragmentActivity() {
                             appLockEnabled
                         ) {
 
-                            isUnlocked = false
-                            authenticationError = null
+                            lastStopTime = System.currentTimeMillis()
+                        } else if (
+                            event == Lifecycle.Event.ON_START && 
+                            appLockEnabled
+                        ) {
+                            if (lastStopTime > 0L && System.currentTimeMillis() - lastStopTime > 30_000) {
+                                isUnlocked = false
+                                authenticationError = null
+                            }
+                            lastStopTime = 0L
                         }
                     }
 

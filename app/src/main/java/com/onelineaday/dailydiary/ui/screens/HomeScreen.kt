@@ -57,6 +57,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
     
     // Form always starts empty or preserved across config changes
     var entryText by rememberSaveable { mutableStateOf("") }
@@ -112,6 +113,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {}
     ) { paddingValues ->
         Column(
@@ -356,38 +358,68 @@ fun HomeScreen(
                             draftMediaUris.isNotEmpty() ||
                             draftAudioUri != null
                         )
-                        Button(
-                            onClick = {
-                                if (canSave) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.saveEntry(
-                                        content = entryText.trim(),
-                                        mood = selectedMood,
-                                        photoUri = photoUri,
-                                        mediaUris = draftMediaUris,
-                                        tags = draftTags,
-                                        audioUri = draftAudioUri
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            if (isEditing && uiState.todayEntry != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        isEditing = false
+                                        uiState.todayEntry?.let { entry ->
+                                            entryText = entry.content
+                                            selectedMoodName = entry.mood.name
+                                            photoUri = entry.photoUri
+                                            draftMediaUris = ArrayList(entry.mediaUris)
+                                            draftTags = ArrayList(entry.tags)
+                                            draftAudioUri = entry.audioUri
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(android.R.string.cancel),
+                                        style = MaterialTheme.typography.labelLarge
                                     )
                                 }
-                            },
-                            enabled = canSave,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.todayEntry != null) Icons.Rounded.Edit else Icons.Rounded.Check,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (uiState.todayEntry != null) stringResource(R.string.home_update_entry) else stringResource(R.string.home_save_entry),
-                                style = MaterialTheme.typography.labelLarge
-                            )
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    if (canSave) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.saveEntry(
+                                            content = entryText.trim(),
+                                            mood = selectedMood,
+                                            photoUri = photoUri,
+                                            mediaUris = draftMediaUris,
+                                            tags = draftTags,
+                                            audioUri = draftAudioUri
+                                        )
+                                    }
+                                },
+                                enabled = canSave,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.todayEntry != null) Icons.Rounded.Edit else Icons.Rounded.Check,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (uiState.todayEntry != null) stringResource(R.string.home_update_entry) else stringResource(R.string.home_save_entry),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                 }
@@ -506,7 +538,7 @@ fun HomeScreen(
     // Show snackbar for messages
     uiState.message?.let { message ->
         LaunchedEffect(message) {
-            kotlinx.coroutines.delay(2000)
+            snackbarHostState.showSnackbar(message)
             viewModel.clearMessage()
         }
     }

@@ -241,7 +241,7 @@ class Converters {
     
     @TypeConverter
     fun toLocalDate(dateString: String?): LocalDate? {
-        return dateString?.let { LocalDate.parse(it) }
+        return runCatching { dateString?.let { LocalDate.parse(it) } }.getOrNull() ?: LocalDate.now()
     }
     
     @TypeConverter
@@ -251,7 +251,7 @@ class Converters {
     
     @TypeConverter
     fun toMood(moodName: String): Mood {
-        return Mood.valueOf(moodName)
+        return runCatching { Mood.valueOf(moodName) }.getOrElse { Mood.NEUTRAL }
     }
 
     @TypeConverter
@@ -261,11 +261,13 @@ class Converters {
 
     @TypeConverter
     fun toStringList(data: String): List<String> {
-        val jsonArray = org.json.JSONArray(data)
-        val list = mutableListOf<String>()
-        for (i in 0 until jsonArray.length()) {
-            list.add(jsonArray.getString(i))
-        }
-        return list
+        return runCatching {
+            val jsonArray = org.json.JSONArray(data)
+            val list = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                list.add(jsonArray.getString(i))
+            }
+            list
+        }.getOrElse { emptyList() }
     }
 }

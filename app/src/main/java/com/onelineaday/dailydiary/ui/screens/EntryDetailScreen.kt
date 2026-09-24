@@ -196,7 +196,7 @@ fun EntryDetailScreen(
             
             // Audio Card
             Spacer(modifier = Modifier.height(20.dp))
-            AudioPlayerView(dateKey = entry.date.toString())
+            AudioPlayerView(audioUri = entry.audioUri, dateKey = entry.date.toString())
             
             Spacer(modifier = Modifier.height(32.dp))
             

@@ -9,6 +9,7 @@ import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.onelineaday.dailydiary.BuildConfig
 
 /**
  * Manages loading and showing interstitial ads on a time interval.
@@ -21,7 +22,10 @@ object InterstitialAdManager {
     private const val TAG = "InterstitialAdManager"
 
     // Real AdMob ad unit ID
-    private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-8204679574020840/2394730635"
+    private val INTERSTITIAL_AD_UNIT_ID = if (BuildConfig.DEBUG)
+        "ca-app-pub-3940256099942544/1033173712"  // Google test interstitial
+    else
+        "ca-app-pub-8204679574020840/2394730635"  // Production
 
     private var interstitialAd: InterstitialAd? = null
     private var isLoading = false

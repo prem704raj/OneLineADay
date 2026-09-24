@@ -14,10 +14,7 @@ class JournalRepository(private val journalDao: JournalDao) {
     
     suspend fun insertJournal(journal: Journal) = journalDao.insertJournal(journal)
     
-    suspend fun updateJournal(journal: Journal) = journalDao.updateJournal(journal)
-    
-    suspend fun deleteJournal(journal: Journal) = journalDao.deleteJournal(journal)
-    
+
     suspend fun getJournalById(id: String): Journal? = journalDao.getJournalById(id)
 
     suspend fun getAllEntriesForBackup(): List<JournalEntry> =
@@ -37,18 +34,7 @@ class JournalRepository(private val journalDao: JournalDao) {
         return journalDao.getEntryByDateOnce(date, journalId)
     }
     
-    fun getEntriesBetweenDates(startDate: LocalDate, endDate: LocalDate, journalId: String = "default"): Flow<List<JournalEntry>> {
-        return journalDao.getEntriesBetweenDates(startDate, endDate, journalId)
-    }
-    
-    fun getEntriesByMood(mood: Mood, journalId: String = "default"): Flow<List<JournalEntry>> {
-        return journalDao.getEntriesByMood(mood, journalId)
-    }
-    
-    fun getRecentEntries(limit: Int = 30, journalId: String = "default"): Flow<List<JournalEntry>> {
-        return journalDao.getRecentEntries(limit, journalId)
-    }
-    
+
     fun searchEntries(query: String, journalId: String = "default"): Flow<List<JournalEntry>> {
         return journalDao.searchEntries(query, journalId)
     }
@@ -57,10 +43,7 @@ class JournalRepository(private val journalDao: JournalDao) {
         journalDao.saveEntry(entry)
     }
     
-    suspend fun updateEntry(entry: JournalEntry) {
-        journalDao.updateEntry(entry.copy(updatedAt = System.currentTimeMillis()))
-    }
-    
+
     suspend fun deleteEntry(entry: JournalEntry) {
         journalDao.deleteEntry(entry)
     }
@@ -69,10 +52,7 @@ class JournalRepository(private val journalDao: JournalDao) {
         journalDao.deleteEntryByDate(date, journalId)
     }
     
-    suspend fun getEntryCountSince(startDate: LocalDate, journalId: String = "default"): Int {
-        return journalDao.getEntryCountSince(startDate, journalId)
-    }
-    
+
     /**
      * Calculate current streak - consecutive days with entries (pure function, no mutation)
      */
