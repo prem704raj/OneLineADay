@@ -301,14 +301,14 @@
     <string name="write_now">Write Now</string>
     <string name="today_button">Today</string>
 
-    <string name="throwback_title">🕰️ %1 Year(s) Ago Today…</string>
-    <string name="word_char_count">%1 words • %2 characters</string>
+    <string name="throwback_title">🕰️ %1$d Year(s) Ago Today…</string>
+    <string name="word_char_count">%1$d words • %2$d characters</string>
 
     <string name="pdf_title">One Line A Day</string>
     <string name="pdf_subtitle">Your personal journal</string>
-    <string name="pdf_entries">Entries: %1</string>
-    <string name="pdf_current_streak">Current streak: %1</string>
-    <string name="pdf_longest_streak">Longest streak: %1</string>
+    <string name="pdf_entries">Entries: %1$d</string>
+    <string name="pdf_current_streak">Current streak: %1$d</string>
+    <string name="pdf_longest_streak">Longest streak: %1$d</string>
     <string name="pdf_voice_attached">Voice note attached</string>
     <string name="pdf_video_attached">Video attached</string>
 </resources>
