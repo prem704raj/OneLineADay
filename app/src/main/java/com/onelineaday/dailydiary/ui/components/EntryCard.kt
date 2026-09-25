@@ -193,8 +193,13 @@ fun EntryCard(
                 val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }
                 allMedia.firstOrNull()?.let { uri ->
                     val isVideo = uri.endsWith(".mp4") || uri.contains("video")
+                    val context = LocalContext.current
                     val mediaData = remember(uri) {
-                        if (uri.startsWith("/")) File(uri) else android.net.Uri.parse(uri)
+                        if (uri.startsWith("/")) {
+                            com.onelineaday.dailydiary.media.MediaStorageManager.resolveMediaFile(context, uri) ?: File(uri)
+                        } else {
+                            android.net.Uri.parse(uri)
+                        }
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Box(
@@ -203,7 +208,7 @@ fun EntryCard(
                             .clip(RoundedCornerShape(12.dp))
                     ) {
                         AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
+                            model = ImageRequest.Builder(context)
                                 .data(mediaData)
                                 .crossfade(true)
                                 .build(),

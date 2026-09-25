@@ -105,7 +105,26 @@ class MediaStorageManager(
         referencedPaths: Set<String>
     ): Boolean =
         withContext(Dispatchers.IO) {
-            if (path in referencedPaths || !isManagedPath(path)) {
+            val fileName = runCatching { File(path).name }.getOrNull()
+            val referencedFileNames = referencedPaths.mapNotNull { runCatching { File(it).name }.getOrNull() }.toSet()
+
+            if (fileName != null && fileName in referencedFileNames) {
+                return@withContext false
+            }
+
+            val canonical = runCatching { File(path).canonicalPath }.getOrNull()
+            val absolute = runCatching { File(path).absolutePath }.getOrNull()
+            val canonicalReferenced = referencedPaths.mapNotNull { runCatching { File(it).canonicalPath }.getOrNull() }.toSet()
+            val absoluteReferenced = referencedPaths.mapNotNull { runCatching { File(it).absolutePath }.getOrNull() }.toSet()
+
+            if (path in referencedPaths ||
+                (canonical != null && (canonical in canonicalReferenced || canonical in referencedPaths)) ||
+                (absolute != null && (absolute in absoluteReferenced || absolute in referencedPaths))
+            ) {
+                return@withContext false
+            }
+
+            if (!isManagedPath(path)) {
                 return@withContext false
             }
 
@@ -115,38 +134,48 @@ class MediaStorageManager(
     suspend fun cleanupOrphans(
         referencedPaths: Set<String>
     ): Int =
-        withContext(
-            Dispatchers.IO
-        ) {
+        withContext(Dispatchers.IO) {
             if (!mediaRoot.exists()) {
                 return@withContext 0
             }
 
+            val referencedFileNames = referencedPaths.mapNotNull { path ->
+                runCatching { File(path).name }.getOrNull()
+            }.filter { it.isNotBlank() }.toSet()
+
+            val canonicalReferenced = referencedPaths.mapNotNull { p ->
+                runCatching { File(p).canonicalPath }.getOrNull()
+            }.toSet()
+
+            val absoluteReferenced = referencedPaths.mapNotNull { p ->
+                runCatching { File(p).absolutePath }.getOrNull()
+            }.toSet()
+
             var deleted = 0
+            val now = System.currentTimeMillis()
+            // 24-hour grace period: never delete recent files
+            val gracePeriodMillis = 24 * 60 * 60 * 1000L
 
             mediaRoot
                 .walkTopDown()
-                .filter {
-                    it.isFile
-                }
+                .filter { it.isFile }
                 .forEach { file ->
+                    if (now - file.lastModified() < gracePeriodMillis) {
+                        return@forEach
+                    }
 
-                    val path =
-                        runCatching {
-                            file.canonicalPath
-                        }.getOrNull()
-                            ?: return@forEach
+                    val canonicalPath = runCatching { file.canonicalPath }.getOrNull() ?: return@forEach
+                    val absolutePath = runCatching { file.absolutePath }.getOrNull() ?: return@forEach
+                    val fileName = file.name
 
-                    if (
-                        path !in
-                        referencedPaths &&
-                        isManagedPath(path)
-                    ) {
-                        if (
-                            runCatching {
-                                file.delete()
-                            }.getOrDefault(false)
-                        ) {
+                    val isReferenced = fileName in referencedFileNames ||
+                            canonicalPath in canonicalReferenced ||
+                            absolutePath in absoluteReferenced ||
+                            absolutePath in referencedPaths ||
+                            canonicalPath in referencedPaths
+
+                    if (!isReferenced && isManagedPath(canonicalPath)) {
+                        if (runCatching { file.delete() }.getOrDefault(false)) {
                             deleted++
                         }
                     }
@@ -154,6 +183,35 @@ class MediaStorageManager(
 
             deleted
         }
+
+    companion object {
+        fun resolveMediaFile(context: Context, pathOrUri: String): File? {
+            if (!pathOrUri.startsWith("/")) return null
+            val direct = File(pathOrUri)
+            if (direct.exists()) return direct
+
+            // Try swapping /data/user/0/ and /data/data/ symlinks
+            if (pathOrUri.contains("/data/user/0/")) {
+                val alt = File(pathOrUri.replace("/data/user/0/", "/data/data/"))
+                if (alt.exists()) return alt
+            } else if (pathOrUri.contains("/data/data/")) {
+                val alt = File(pathOrUri.replace("/data/data/", "/data/user/0/"))
+                if (alt.exists()) return alt
+            }
+
+            // Fallback: search by file name inside internal storage journal_media
+            val name = direct.name
+            if (name.isNotEmpty()) {
+                val mediaRoot = File(context.filesDir, "journal_media")
+                if (mediaRoot.exists()) {
+                    val found = mediaRoot.walkTopDown().firstOrNull { it.name == name }
+                    if (found != null && found.exists()) return found
+                }
+            }
+
+            return direct
+        }
+    }
 
     private fun queryDisplayName(uri: Uri): String? =
         context.contentResolver

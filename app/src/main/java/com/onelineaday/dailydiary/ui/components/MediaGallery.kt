@@ -129,11 +129,13 @@ private fun MediaItem(
     val context = LocalContext.current
     val isVideo = uriString.endsWith(".mp4") || uriString.contains("video")
     
-    val mediaFile = remember(uriString) {
-        if (uriString.startsWith("/")) File(uriString) else null
+    val resolvedFile = remember(uriString) {
+        if (uriString.startsWith("/")) {
+            com.onelineaday.dailydiary.media.MediaStorageManager.resolveMediaFile(context, uriString)
+        } else null
     }
     
-    val exists = mediaFile?.exists() ?: true
+    val exists = resolvedFile?.exists() ?: true
     
     if (exists) {
         Box(
@@ -146,10 +148,11 @@ private fun MediaItem(
                         // Launch intent to view video
                         val intent = Intent(Intent.ACTION_VIEW).apply {
                             val uri = if (uriString.startsWith("/")) {
+                                val targetFile = resolvedFile ?: File(uriString)
                                 androidx.core.content.FileProvider.getUriForFile(
                                     context,
                                     "${context.packageName}.provider",
-                                    File(uriString)
+                                    targetFile
                                 )
                             } else {
                                 Uri.parse(uriString)
@@ -167,9 +170,12 @@ private fun MediaItem(
                     }
                 }
         ) {
+            val imageModel = remember(uriString, resolvedFile) {
+                if (uriString.startsWith("/")) (resolvedFile ?: File(uriString)) else Uri.parse(uriString)
+            }
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(if (uriString.startsWith("/")) File(uriString) else Uri.parse(uriString))
+                    .data(imageModel)
                     .crossfade(true)
                     // If we use coil-video, it will generate a thumbnail for video files.
                     .build(),

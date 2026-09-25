@@ -48,12 +48,19 @@ fun PhotoAttachment(
         uri?.let { onPhotoSelected(it) }
     }
     
-    // Check if photo file exists (for internal storage paths)
-    val photoExists = remember(photoUri) {
+    val resolvedFile = remember(photoUri) {
         photoUri?.let {
             if (it.startsWith("/")) {
-                // It's an internal storage path
-                File(it).exists()
+                com.onelineaday.dailydiary.media.MediaStorageManager.resolveMediaFile(context, it)
+            } else null
+        }
+    }
+    
+    // Check if photo file exists (for internal storage paths)
+    val photoExists = remember(photoUri, resolvedFile) {
+        photoUri?.let {
+            if (it.startsWith("/")) {
+                resolvedFile?.exists() ?: false
             } else {
                 // It's a content URI
                 true
@@ -76,16 +83,16 @@ fun PhotoAttachment(
                     .height(200.dp)
                     .clip(RoundedCornerShape(16.dp))
             ) {
-                // Use SubcomposeAsyncImage for better error handling
+                val imageModel = remember(photoUri, resolvedFile) {
+                    if (photoUri?.startsWith("/") == true) {
+                        resolvedFile ?: File(photoUri)
+                    } else {
+                        photoUri?.let { Uri.parse(it) }
+                    }
+                }
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data(
-                            if (photoUri?.startsWith("/") == true) {
-                                File(photoUri)
-                            } else {
-                                photoUri
-                            }
-                        )
+                        .data(imageModel)
                         .crossfade(true)
                         .build(),
                     contentDescription = stringResource(R.string.attached_photo),

@@ -78,12 +78,6 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        viewModelScope.launch {
-            runCatching {
-                cleanupOrphansNow()
-            }
-        }
-
         setSelectedDate(LocalDate.now())
     }
 
@@ -359,9 +353,21 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun JournalEntry.attachmentPaths(): Set<String> = buildSet {
-        photoUri?.let(::add)
-        addAll(mediaUris)
-        audioUri?.let(::add)
+        photoUri?.let { path ->
+            add(path)
+            runCatching { java.io.File(path).canonicalPath }.getOrNull()?.let(::add)
+            runCatching { java.io.File(path).absolutePath }.getOrNull()?.let(::add)
+        }
+        mediaUris.forEach { path ->
+            add(path)
+            runCatching { java.io.File(path).canonicalPath }.getOrNull()?.let(::add)
+            runCatching { java.io.File(path).absolutePath }.getOrNull()?.let(::add)
+        }
+        audioUri?.let { path ->
+            add(path)
+            runCatching { java.io.File(path).canonicalPath }.getOrNull()?.let(::add)
+            runCatching { java.io.File(path).absolutePath }.getOrNull()?.let(::add)
+        }
     }
 
     private suspend fun cleanupNoLongerReferenced(

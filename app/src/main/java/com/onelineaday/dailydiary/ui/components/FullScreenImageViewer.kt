@@ -102,7 +102,11 @@ private fun ZoomableImage(uri: String) {
 
     val context = LocalContext.current
     val imageModel = remember(uri) {
-        if (uri.startsWith("/")) File(uri) else uri
+        if (uri.startsWith("/")) {
+            com.onelineaday.dailydiary.media.MediaStorageManager.resolveMediaFile(context, uri) ?: File(uri)
+        } else {
+            android.net.Uri.parse(uri)
+        }
     }
 
     Box(
