@@ -51,6 +51,7 @@ fun CalendarScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
     ) {
         // Header
         Row(

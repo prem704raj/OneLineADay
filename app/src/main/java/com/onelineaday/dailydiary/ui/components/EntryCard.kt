@@ -194,7 +194,7 @@ fun EntryCard(
                 allMedia.firstOrNull()?.let { uri ->
                     val isVideo = uri.endsWith(".mp4") || uri.contains("video")
                     val mediaData = remember(uri) {
-                        if (uri.startsWith("/")) File(uri) else uri
+                        if (uri.startsWith("/")) File(uri) else android.net.Uri.parse(uri)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Box(

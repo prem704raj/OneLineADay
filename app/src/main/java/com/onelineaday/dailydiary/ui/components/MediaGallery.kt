@@ -169,7 +169,7 @@ private fun MediaItem(
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(mediaFile ?: uriString)
+                    .data(if (uriString.startsWith("/")) File(uriString) else Uri.parse(uriString))
                     .crossfade(true)
                     // If we use coil-video, it will generate a thumbnail for video files.
                     .build(),

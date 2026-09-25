@@ -242,8 +242,8 @@ fun SettingsScreen(
                                 .background(
                                     Brush.horizontalGradient(
                                         colors = listOf(
-                                            Color(0xFFFFD700),
-                                            Color(0xFFFFA500)
+                                            MaterialTheme.colorScheme.primaryContainer,
+                                            MaterialTheme.colorScheme.tertiaryContainer
                                         )
                                     )
                                 )
@@ -257,13 +257,13 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.25f)),
+                                        .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.WorkspacePremium,
                                         contentDescription = stringResource(R.string.premium_go_premium),
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
@@ -273,18 +273,18 @@ fun SettingsScreen(
                                         text = stringResource(R.string.upgrade_to_premium),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                     Text(
                                         text = stringResource(R.string.upgrade_to_premium_subtitle),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White.copy(alpha = 0.9f)
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
                                     )
                                 }
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                                     contentDescription = stringResource(R.string.open),
-                                    tint = Color.White
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }

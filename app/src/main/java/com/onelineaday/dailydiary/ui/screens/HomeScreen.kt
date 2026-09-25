@@ -129,15 +129,17 @@ fun HomeScreen(
                 .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f).padding(end = 16.dp)
+                ) {
                     val isToday = uiState.selectedDate == today
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
