@@ -132,10 +132,14 @@ fun MainNavigation(
         // Prevent applying the top system inset twice. Each screen manages its own top bar / status bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
+            Column {
+                if (currentDestination?.route != "privacy_policy") {
+                    com.onelineaday.dailydiary.ads.BannerAdView()
+                }
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
                 screens.forEach { screen ->
                     val selected = currentDestination?.hierarchy?.any { 
                         it.route == screen.route 
@@ -176,6 +180,7 @@ fun MainNavigation(
                 }
             }
         }
+    }
     ) { innerPadding ->
         NavHost(
             navController = navController,

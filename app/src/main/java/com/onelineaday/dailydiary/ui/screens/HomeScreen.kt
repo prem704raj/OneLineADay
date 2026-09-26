@@ -187,7 +187,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Rounded.WorkspacePremium,
                             contentDescription = stringResource(R.string.premium_go_premium),
-                            tint = Color(0xFFFFA500)
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -421,6 +421,9 @@ fun HomeScreen(
                                             tags = draftTags,
                                             audioUri = draftAudioUri
                                         )
+                                        (context as? android.app.Activity)?.let { activity ->
+                                            com.onelineaday.dailydiary.ads.InterstitialAdManager.onEntrySaved(activity)
+                                        }
                                     }
                                 },
                                 enabled = canSave,

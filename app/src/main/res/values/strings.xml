@@ -202,7 +202,11 @@
 
     <!-- Premium -->
     <string name="premium_go_premium">Go Premium</string>
-    <string name="premium_description">Remove all ads forever, unlock all custom themes, and support future development.</string>
+    <string name="premium_description">Unlock the complete, distraction-free journaling experience.</string>
+    <string name="premium_feature_ad_free">100% Ad-Free Experience</string>
+    <string name="premium_feature_themes">All 6 Aesthetic Color Themes</string>
+    <string name="premium_feature_cloud_backup">Automated Cloud &amp; Drive Backup</string>
+    <string name="premium_feature_unlimited">Unlimited Audio Notes &amp; Photos</string>
     <string name="premium_continue">Continue</string>
     <string name="premium_restore">Restore Purchases</string>
     <string name="premium_best_value">BEST VALUE</string>
