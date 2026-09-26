@@ -232,8 +232,8 @@ fun PremiumDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                val isCurrentPlanAvailable = (selectedPlan == "monthly" && (monthlyAvailable || BuildConfig.DEBUG)) ||
-                        (selectedPlan == "lifetime" && (lifetimeAvailable || BuildConfig.DEBUG))
+                val isCurrentPlanAvailable = (selectedPlan == "monthly" && monthlyAvailable) ||
+                        (selectedPlan == "lifetime" && lifetimeAvailable)
 
                 Button(
                     onClick = {
@@ -244,13 +244,6 @@ fun PremiumDialog(
                             val isLiveAvailable = if (isSub) monthlyAvailable else lifetimeAvailable
 
                             if (!isLiveAvailable) {
-                                if (BuildConfig.DEBUG) {
-                                    // Developer / offline debug simulation
-                                    PremiumManager.setPremium(context, true, testMode = true)
-                                    Toast.makeText(context, "Debug: Premium activated for testing!", Toast.LENGTH_SHORT).show()
-                                    onDismiss()
-                                    return@Button
-                                }
                                 Toast.makeText(context, planUnavailableMessage, Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
@@ -312,28 +305,6 @@ fun PremiumDialog(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-
-                // Debug Test Mode toggle (automatically stripped in Release builds)
-                if (BuildConfig.DEBUG) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedButton(
-                        onClick = {
-                            PremiumManager.setPremium(context, true, testMode = true)
-                            Toast.makeText(context, "Developer Test: Premium activated!", Toast.LENGTH_SHORT).show()
-                            onDismiss()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "🛠️ Instant Test Premium (Debug Only)",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
         }

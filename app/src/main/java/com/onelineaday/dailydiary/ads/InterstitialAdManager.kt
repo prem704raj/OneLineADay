@@ -94,12 +94,18 @@ object InterstitialAdManager {
         showAd(activity, onAdDismissed)
     }
 
+    fun isAdReady(): Boolean =
+        !com.onelineaday.dailydiary.PremiumManager.isPremium.value &&
+            AdsConsentManager.canRequestAds.value &&
+            interstitialAd != null &&
+            !isShowing
+
     /**
      * Shows the interstitial ad unconditionally.
      * 
      * [onAdDismissed] is called when the ad is closed (or if it wasn't shown).
      */
-    private fun showAd(activity: Activity, onAdDismissed: () -> Unit = {}) {
+    fun showAd(activity: Activity, onAdDismissed: () -> Unit = {}) {
         if (isShowing) {
             onAdDismissed()
             return
@@ -109,6 +115,7 @@ object InterstitialAdManager {
         
         if (ad == null) {
             // Ad isn't loaded yet
+            loadAd(activity)
             onAdDismissed()
             return
         }
@@ -120,6 +127,7 @@ object InterstitialAdManager {
                 Log.d(TAG, "Interstitial ad dismissed")
                 interstitialAd = null
                 isShowing = false
+                TimedAdManager.notifyAdShown()
                 onAdDismissed()
                 // Pre-load the next ad
                 loadAd(activity)
@@ -136,6 +144,7 @@ object InterstitialAdManager {
 
             override fun onAdShowedFullScreenContent() {
                 Log.d(TAG, "Interstitial ad shown")
+                TimedAdManager.notifyAdShown()
             }
         }
 

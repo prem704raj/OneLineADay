@@ -76,6 +76,7 @@ class MainActivity : FragmentActivity() {
         PremiumManager.init(this)
         BillingManager.init(this)
         AdsConsentManager.gatherConsent(this)
+        com.onelineaday.dailydiary.ads.TimedAdManager.init(this, this)
 
         enableEdgeToEdge()
 

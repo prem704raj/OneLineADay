@@ -119,6 +119,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {}
     ) { paddingValues ->
@@ -555,7 +556,6 @@ fun HomeScreen(
             }
             
             Spacer(modifier = Modifier.height(16.dp))
-            BannerAdView()
             Spacer(modifier = Modifier.height(84.dp))
         }
     }

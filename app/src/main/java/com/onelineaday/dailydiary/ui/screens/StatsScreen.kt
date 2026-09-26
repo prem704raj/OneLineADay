@@ -169,8 +169,6 @@ fun StatsScreen(
                 
                 Spacer(modifier = Modifier.height(16.dp))
             }
-            
-            BannerAdView()
         }
     }
 }

@@ -358,6 +358,18 @@ fun TimelineScreen(
                                 onClick = { selectedEntry = entry },
                                 modifier = Modifier.animateItemPlacement()
                             )
+
+                            if ((index + 1) % 2 == 0) {
+                                val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
+                                val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
+                                if (!isPremium && canRequestAds) {
+                                    BannerAdView(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                         
                         item {
@@ -366,8 +378,6 @@ fun TimelineScreen(
                     }
                 }
             }
-            
-            BannerAdView()
         }
     }
     

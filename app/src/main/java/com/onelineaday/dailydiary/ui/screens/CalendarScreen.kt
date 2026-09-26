@@ -46,12 +46,15 @@ fun CalendarScreen(
     }
 
     val today = LocalDate.now()
+    val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
+    val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
+    val hasTopBanner = !isPremium && canRequestAds
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
+            .then(if (!hasTopBanner) Modifier.statusBarsPadding() else Modifier)
     ) {
         // Header
         Row(

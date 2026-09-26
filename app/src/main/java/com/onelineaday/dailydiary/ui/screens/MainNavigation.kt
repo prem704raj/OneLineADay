@@ -126,15 +126,36 @@ fun MainNavigation(
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
+    val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
+    val isHomeOrCalendar = currentDestination?.route == Screen.Home.route || currentDestination?.route == Screen.Calendar.route
     
     Scaffold(
         modifier = modifier.fillMaxSize(),
         // Prevent applying the top system inset twice. Each screen manages its own top bar / status bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    com.onelineaday.dailydiary.ads.BannerAdView()
+                }
+            }
+        },
         bottomBar = {
             Column {
-                if (currentDestination?.route != "privacy_policy") {
+                if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
+                    // 1st bottom banner (present on all screens)
                     com.onelineaday.dailydiary.ads.BannerAdView()
+
+                    // 2nd bottom banner (present on all screens EXCEPT calendar and today screen)
+                    if (!isHomeOrCalendar) {
+                        com.onelineaday.dailydiary.ads.BannerAdView()
+                    }
                 }
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,

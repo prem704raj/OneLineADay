@@ -51,6 +51,8 @@ object BillingManager : PurchasesUpdatedListener {
         connect()
     }
 
+    private var isConnecting = false
+
     fun connect(onConnected: (() -> Unit)? = null) {
         val client = billingClient ?: return
         if (client.isReady) {
@@ -60,8 +62,15 @@ object BillingManager : PurchasesUpdatedListener {
             return
         }
 
+        if (isConnecting) {
+            Log.d(TAG, "Billing client connection is already in progress")
+            return
+        }
+
+        isConnecting = true
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
+                isConnecting = false
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                     Log.d(TAG, "Billing client connected successfully")
                     refreshProducts()
@@ -77,6 +86,7 @@ object BillingManager : PurchasesUpdatedListener {
             }
 
             override fun onBillingServiceDisconnected() {
+                isConnecting = false
                 Log.w(TAG, "Billing service disconnected")
                 // PBL 9 auto-reconnects because enableAutoServiceReconnection() is enabled
             }
