@@ -128,7 +128,6 @@ fun MainNavigation(
     val currentDestination = navBackStackEntry?.destination
     val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
     val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
-    val isHomeOrCalendar = currentDestination?.route == Screen.Home.route || currentDestination?.route == Screen.Calendar.route
     
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -149,13 +148,7 @@ fun MainNavigation(
         bottomBar = {
             Column {
                 if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
-                    // 1st bottom banner (present on all screens)
                     com.onelineaday.dailydiary.ads.BannerAdView()
-
-                    // 2nd bottom banner (present on all screens EXCEPT calendar and today screen)
-                    if (!isHomeOrCalendar) {
-                        com.onelineaday.dailydiary.ads.BannerAdView()
-                    }
                 }
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
