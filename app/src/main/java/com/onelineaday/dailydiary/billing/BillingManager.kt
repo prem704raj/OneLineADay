@@ -165,11 +165,14 @@ object BillingManager : PurchasesUpdatedListener {
             )
             .build()
 
+        Log.i("BillingDebug", "queryProductDetailsAsync for $productId ($productType)")
         client.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
+            Log.i("BillingDebug", "queryProductDetailsAsync result for $productId: code=${billingResult.responseCode}, debugMsg=${billingResult.debugMessage}, count=${queryProductDetailsResult.productDetailsList.size}, unfetched=${queryProductDetailsResult.unfetchedProductList.map { "${it.productId}(${it.statusCode})" }}")
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                 val list = queryProductDetailsResult.productDetailsList
                 val product = list.firstOrNull { it.productId == productId }
                 if (product != null) {
+                    Log.i("BillingDebug", "Found product: ${product.productId}, title=${product.title}")
                     callback(product, null)
                 } else {
                     val unfetched = queryProductDetailsResult.unfetchedProductList.firstOrNull { it.productId == productId }
@@ -254,11 +257,13 @@ object BillingManager : PurchasesUpdatedListener {
             productDetailsParamsBuilder.setOfferToken(offerToken)
         }
 
+        Log.i("BillingDebug", "launchBillingFlow for $productId: details=${details.title}, type=${details.productType}")
         val flowParams = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productDetailsParamsBuilder.build()))
             .build()
 
         val result = client.launchBillingFlow(activity, flowParams)
+        Log.i("BillingDebug", "launchBillingFlow result: code=${result.responseCode}, debugMsg=${result.debugMessage}")
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
             val msg = friendlyBillingError(result)
             Log.e(TAG, "Failed to launch billing flow: $msg")

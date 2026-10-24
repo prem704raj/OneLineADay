@@ -74,4 +74,5 @@ commit_101.py
 update_icon.py
 
 # Gemini IDE
-.gemini/
+.gemini/
+screen_*.png
