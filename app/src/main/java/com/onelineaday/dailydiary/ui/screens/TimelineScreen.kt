@@ -566,10 +566,11 @@ fun EditEntryDialog(
                         scope.launch {
                             isImportingMedia = true
                             try {
-                                val newPaths = uris.mapNotNull { uri ->
+                                val remaining = (10 - editedMediaUris.size).coerceAtLeast(0)
+                                val newPaths = uris.take(remaining).mapNotNull { uri ->
                                     viewModel.importMedia(uri)
                                 }
-                                editedMediaUris = (editedMediaUris + newPaths).distinct()
+                                editedMediaUris = (editedMediaUris + newPaths).distinct().take(10)
                             } finally {
                                 isImportingMedia = false
                             }
@@ -578,12 +579,10 @@ fun EditEntryDialog(
                     onMediaRemoved = { uri ->
                         editedMediaUris = editedMediaUris.filter { it != uri }
                     },
-                    isEditable = true
+                    isEditable = true,
+                    maxItems = 10,
+                    isImporting = isImportingMedia
                 )
-
-                if (isImportingMedia) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
             }
         },
         confirmButton = {

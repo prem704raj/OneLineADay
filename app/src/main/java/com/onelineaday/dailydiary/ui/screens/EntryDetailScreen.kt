@@ -47,6 +47,7 @@ fun EntryDetailScreen(
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(onBack = onBack)
     
     Scaffold(
         modifier = modifier.fillMaxSize(),

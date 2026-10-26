@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.onelineaday.dailydiary.backup.BackupArchiveManager
 import com.onelineaday.dailydiary.backup.BackupExportResult
 import com.onelineaday.dailydiary.backup.BackupRestoreResult
+import com.onelineaday.dailydiary.backup.BackupPreviewResult
 import com.onelineaday.dailydiary.data.*
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.media.MediaStorageManager
@@ -16,6 +17,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Dispatchers
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -79,6 +82,14 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         }
 
         setSelectedDate(LocalDate.now())
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                cleanupOrphansNow()
+            } catch (e: Exception) {
+                android.util.Log.w("JournalViewModel", "Initial orphan cleanup skipped: ${e.message}")
+            }
+        }
     }
 
     fun refreshToday() {
@@ -162,78 +173,92 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         audioUri: String? = null
     ) {
         viewModelScope.launch {
-            if (!saveMutex.tryLock()) return@launch
+            saveMutex.withLock {
+                _uiState.update { it.copy(isSaving = true) }
 
-            _uiState.update { it.copy(isSaving = true) }
+                try {
+                    refreshToday()
 
-            try {
-                refreshToday()
+                    val journalId = _activeJournalId.value
+                    val date = _selectedDate.value
 
-                val journalId = _activeJournalId.value
-                val date = _selectedDate.value
+                    if (date.isAfter(LocalDate.now())) {
+                        _uiState.update {
+                            it.copy(message = getApplication<Application>().getString(R.string.future_date_not_allowed))
+                        }
+                        return@withLock
+                    }
 
-                val existingEntry = repository.getEntryByDateOnce(date, journalId)
+                    val existingEntry = repository.getEntryByDateOnce(date, journalId)
 
-                val finalMediaUris =
-                    mediaUris
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .toMutableList()
+                    val finalMediaUris =
+                        mediaUris
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .take(10)
+                            .toMutableList()
 
-                if (photoUri != null && photoUri.isNotBlank() && photoUri !in finalMediaUris) {
-                    finalMediaUris.add(0, photoUri)
-                }
+                    if (photoUri != null && photoUri.isNotBlank() && photoUri !in finalMediaUris && finalMediaUris.size < 10) {
+                        finalMediaUris.add(0, photoUri)
+                    }
 
-                val normalizedTags =
-                    tags
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                        .distinctBy { it.lowercase() }
+                    val primaryPhoto = photoUri ?: finalMediaUris.firstOrNull()
 
-                val now = System.currentTimeMillis()
+                    val normalizedTags =
+                        tags
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .distinctBy { it.lowercase() }
 
-                val entry =
-                    if (existingEntry != null) {
-                        existingEntry.copy(
-                            content = content,
-                            mood = mood,
-                            photoUri = photoUri,
-                            mediaUris = finalMediaUris,
-                            tags = normalizedTags,
-                            audioUri = audioUri,
-                            updatedAt = now
-                        )
-                    } else {
-                        JournalEntry(
-                            date = date,
-                            journalId = journalId,
-                            content = content,
-                            mood = mood,
-                            photoUri = photoUri,
-                            mediaUris = finalMediaUris,
-                            tags = normalizedTags,
-                            audioUri = audioUri,
-                            createdAt = now,
-                            updatedAt = now
+                    val now = System.currentTimeMillis()
+
+                    val entry =
+                        if (existingEntry != null) {
+                            existingEntry.copy(
+                                content = content,
+                                mood = mood,
+                                photoUri = primaryPhoto,
+                                mediaUris = finalMediaUris,
+                                tags = normalizedTags,
+                                audioUri = audioUri,
+                                updatedAt = now
+                            )
+                        } else {
+                            JournalEntry(
+                                date = date,
+                                journalId = journalId,
+                                content = content,
+                                mood = mood,
+                                photoUri = primaryPhoto,
+                                mediaUris = finalMediaUris,
+                                tags = normalizedTags,
+                                audioUri = audioUri,
+                                createdAt = now,
+                                updatedAt = now
+                            )
+                        }
+
+                    repository.saveEntry(entry)
+                    com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
+                    _uiState.update {
+                        it.copy(
+                            message = getApplication<Application>().getString(R.string.entry_saved),
+                            entrySaved = true
                         )
                     }
 
-                repository.saveEntry(entry)
-                com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
-                cleanupNoLongerReferenced(existingEntry, entry)
-                _uiState.update {
-                    it.copy(
-                        message = getApplication<Application>().getString(R.string.entry_saved),
-                        entrySaved = true
-                    )
+                    runCatching {
+                        cleanupNoLongerReferenced(existingEntry, entry)
+                    }.onFailure { e ->
+                        android.util.Log.w("JournalViewModel", "Post-save orphan cleanup error: ${e.message}")
+                    }
+                } catch (t: Throwable) {
+                    _uiState.update {
+                        it.copy(message = getApplication<Application>().getString(R.string.save_failed))
+                    }
+                } finally {
+                    _uiState.update { it.copy(isSaving = false) }
                 }
-            } catch (t: Throwable) {
-                _uiState.update {
-                    it.copy(message = getApplication<Application>().getString(R.string.save_failed))
-                }
-            } finally {
-                _uiState.update { it.copy(isSaving = false) }
-                saveMutex.unlock()
             }
         }
     }
@@ -261,11 +286,13 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         newTags: List<String> = entry.tags
     ) {
         viewModelScope.launch {
+            val finalMedia = newMediaUris.filter { it.isNotBlank() }.distinct().take(10)
+            val primaryPhoto = newPhotoUri ?: finalMedia.firstOrNull()
             val updatedEntry = entry.copy(
                 content = newContent,
                 mood = newMood,
-                photoUri = newPhotoUri,
-                mediaUris = newMediaUris,
+                photoUri = primaryPhoto,
+                mediaUris = finalMedia,
                 audioUri = newAudioUri,
                 tags = newTags,
                 updatedAt = System.currentTimeMillis()
@@ -411,11 +438,32 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         return backupManager.exportBackup()
     }
 
+    suspend fun inspectBackup(backupUri: Uri): BackupPreviewResult {
+        return backupManager.inspectBackup(backupUri)
+    }
+
     suspend fun restoreBackup(backupUri: Uri): BackupRestoreResult {
+        // Create an automatic safety snapshot before overwriting
+        try {
+            backupManager.createSafetySnapshot()
+        } catch (_: Exception) {}
+
         val result = backupManager.restoreBackup(backupUri)
         if (result is BackupRestoreResult.Success) {
-            loadData(_activeJournalId.value)
+            val journals = repository.getAllJournalsOnce()
+            val targetId = if (journals.any { it.id == _activeJournalId.value }) {
+                _activeJournalId.value
+            } else {
+                journals.firstOrNull()?.id ?: "default"
+            }
+            if (_activeJournalId.value != targetId) {
+                _activeJournalId.value = targetId
+                prefs.edit().putString("active_journal_id", targetId).apply()
+            }
+            loadData(targetId)
             setSelectedDate(_selectedDate.value)
+            com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
+            runCatching { cleanupOrphansNow() }
         }
         return result
     }

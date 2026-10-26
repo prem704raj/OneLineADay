@@ -39,7 +39,9 @@ fun MediaGallery(
     onMediaSelected: (List<Uri>) -> Unit,
     onMediaRemoved: (String) -> Unit,
     isEditable: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    maxItems: Int = 10,
+    isImporting: Boolean = false
 ) {
     val context = LocalContext.current
     
@@ -47,21 +49,47 @@ fun MediaGallery(
     var viewerIndex by remember { mutableIntStateOf(0) }
     
     val imageUris = remember(mediaUris) {
-        mediaUris.filter { !it.endsWith(".mp4") && !it.contains("video") }
+        mediaUris.filter { !isVideoMedia(it) }
     }
     
-    // Create multiple visual media picker
+    // Create multiple visual media picker (maxItems limit)
     val multipleMediaPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia()
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = maxItems)
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
-            onMediaSelected(uris)
+            val remaining = (maxItems - mediaUris.size).coerceAtLeast(0)
+            val limited = uris.take(remaining)
+            if (limited.isNotEmpty()) {
+                onMediaSelected(limited)
+            }
         }
     }
 
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
+        if (isEditable && mediaUris.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.media_attached),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${mediaUris.size} / $maxItems",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (mediaUris.size >= maxItems) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                )
+            }
+        }
+
         if (mediaUris.isNotEmpty()) {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -79,7 +107,7 @@ fun MediaGallery(
                     )
                 }
                 
-                if (isEditable) {
+                if (isEditable && mediaUris.size < maxItems) {
                     item {
                         AddMediaButtonSmall {
                             multipleMediaPicker.launch(
@@ -99,6 +127,15 @@ fun MediaGallery(
                     )
                 )
             }
+        }
+
+        if (isImporting) {
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+            )
         }
     }
     
@@ -127,7 +164,7 @@ private fun MediaItem(
     onImageClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val isVideo = uriString.endsWith(".mp4") || uriString.contains("video")
+    val isVideo = isVideoMedia(uriString)
     
     val resolvedFile = remember(uriString) {
         if (uriString.startsWith("/")) {
@@ -278,7 +315,7 @@ private fun AddMediaButtonLarge(onClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = stringResource(R.string.add_media),
+            text = stringResource(R.string.add_media_up_to_10),
             style = MaterialTheme.typography.labelLarge
         )
     }
@@ -312,4 +349,14 @@ private fun AddMediaButtonSmall(onClick: () -> Unit) {
             )
         }
     }
+}
+
+fun isVideoMedia(pathOrUri: String): Boolean {
+    val clean = pathOrUri.substringBefore('?').lowercase()
+    val ext = clean.substringAfterLast('.', "")
+    val videoExtensions = setOf("mp4", "webm", "3gp", "mkv", "mov", "ts", "avi")
+    if (ext in videoExtensions) return true
+    val mimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+    if (mimeType?.startsWith("video/") == true) return true
+    return clean.contains("video/") || clean.contains("/video") || clean.contains("video_")
 }

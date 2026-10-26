@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.data.Mood
+import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.ui.components.*
 import com.onelineaday.dailydiary.ui.components.PhotoAttachment
 import com.onelineaday.dailydiary.ui.components.PremiumDialog
@@ -45,7 +46,8 @@ import java.time.format.DateTimeFormatter
 fun HomeScreen(
     viewModel: JournalViewModel,
     uiState: com.onelineaday.dailydiary.viewmodel.JournalUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToDetail: (JournalEntry) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -60,6 +62,7 @@ fun HomeScreen(
     var draftMediaUris by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var draftTags by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var draftAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var isImportingMedia by remember { mutableStateOf(false) }
     
     // Controls whether to show the edit form or the "captured" card
     var isEditing by rememberSaveable { mutableStateOf(false) }
@@ -127,6 +130,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .statusBarsPadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp)
         ) {
@@ -162,7 +166,7 @@ fun HomeScreen(
                     } else {
                         AssistChip(
                             onClick = { viewModel.setSelectedDate(today) },
-                            label = { Text("Back to Today") },
+                            label = { Text(stringResource(R.string.back_to_today)) },
                             leadingIcon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                     }
@@ -208,7 +212,7 @@ fun HomeScreen(
                 )
                 EntryCard(
                     entry = entry,
-                    onClick = { /* Could open detail view, but for now just display */ }
+                    onClick = { onNavigateToDetail(entry) }
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -334,24 +338,31 @@ fun HomeScreen(
                         
                         Spacer(modifier = Modifier.height(20.dp))
                         
-                        // Photo Attachment
-                        PhotoAttachment(
-                            photoUri = photoUri,
-                            onPhotoSelected = { uri ->
+                        // Media Gallery (Upload up to 10 images)
+                        MediaGallery(
+                            mediaUris = draftMediaUris,
+                            onMediaSelected = { uris ->
                                 scope.launch {
-                                    val savedPath = viewModel.importMedia(uri)
-                                    if (savedPath != null) {
-                                        photoUri = savedPath
+                                    isImportingMedia = true
+                                    try {
+                                        val remaining = (10 - draftMediaUris.size).coerceAtLeast(0)
+                                        val newPaths = uris.take(remaining).mapNotNull { uri ->
+                                            viewModel.importMedia(uri)
+                                        }
+                                        draftMediaUris = ArrayList((draftMediaUris + newPaths).distinct().take(10))
+                                        photoUri = draftMediaUris.firstOrNull()
+                                    } finally {
+                                        isImportingMedia = false
                                     }
                                 }
                             },
-                            onPhotoRemoved = {
-                                val removedPath = photoUri
-                                photoUri = null
-                                if (removedPath != null) {
-                                    draftMediaUris = ArrayList(draftMediaUris.filterNot { it == removedPath })
-                                }
-                            }
+                            onMediaRemoved = { removedPath ->
+                                draftMediaUris = ArrayList(draftMediaUris.filterNot { it == removedPath })
+                                photoUri = draftMediaUris.firstOrNull()
+                            },
+                            isEditable = true,
+                            maxItems = 10,
+                            isImporting = isImportingMedia
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -375,9 +386,8 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         
                         // Save Button
-                        val canSave = !uiState.isSaving && (
+                        val canSave = !uiState.isSaving && !isImportingMedia && (
                             entryText.isNotBlank() ||
-                            photoUri != null ||
                             draftMediaUris.isNotEmpty() ||
                             draftAudioUri != null
                         )
@@ -392,8 +402,9 @@ fun HomeScreen(
                                         uiState.todayEntry?.let { entry ->
                                             entryText = entry.content
                                             selectedMoodName = entry.mood.name
-                                            photoUri = entry.photoUri
-                                            draftMediaUris = ArrayList(entry.mediaUris)
+                                            val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }
+                                            draftMediaUris = ArrayList(allMedia.take(10))
+                                            photoUri = draftMediaUris.firstOrNull()
                                             draftTags = ArrayList(entry.tags)
                                             draftAudioUri = entry.audioUri
                                         }
@@ -417,17 +428,14 @@ fun HomeScreen(
                                         viewModel.saveEntry(
                                             content = entryText.trim(),
                                             mood = selectedMood,
-                                            photoUri = photoUri,
+                                            photoUri = draftMediaUris.firstOrNull(),
                                             mediaUris = draftMediaUris,
                                             tags = draftTags,
                                             audioUri = draftAudioUri
                                         )
-                                        (context as? android.app.Activity)?.let { activity ->
-                                            com.onelineaday.dailydiary.ads.InterstitialAdManager.onEntrySaved(activity)
-                                        }
                                     }
                                 },
-                                enabled = canSave,
+                                enabled = canSave && !uiState.isSaving,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(56.dp),
@@ -511,6 +519,20 @@ fun HomeScreen(
                                     modifier = Modifier.padding(16.dp)
                                 )
                             }
+
+                            // Show attached media if present
+                            val allTodayMedia = remember(entry) {
+                                (entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }).distinct()
+                            }
+                            if (allTodayMedia.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                MediaGallery(
+                                    mediaUris = allTodayMedia,
+                                    onMediaSelected = {},
+                                    onMediaRemoved = {},
+                                    isEditable = false
+                                )
+                            }
                         }
                         
                         Spacer(modifier = Modifier.height(20.dp))
@@ -522,8 +544,9 @@ fun HomeScreen(
                                 uiState.todayEntry?.let { entry ->
                                     entryText = entry.content
                                     selectedMoodName = entry.mood.name
-                                    photoUri = entry.photoUri
-                                    draftMediaUris = ArrayList(entry.mediaUris)
+                                    val allMedia = entry.mediaUris + listOfNotNull(entry.photoUri).filter { it !in entry.mediaUris }
+                                    draftMediaUris = ArrayList(allMedia.take(10))
+                                    photoUri = draftMediaUris.firstOrNull()
                                     draftTags = ArrayList(entry.tags)
                                     draftAudioUri = entry.audioUri
                                 }

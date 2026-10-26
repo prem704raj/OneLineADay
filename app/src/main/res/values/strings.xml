@@ -42,9 +42,16 @@
     <string name="settings_data">Data</string>
     <string name="settings_export_pdf_subtitle">Download your journal as PDF</string>
     <string name="settings_backup">Backup Data</string>
-    <string name="cloud_backup">Cloud Backup</string>
+    <string name="cloud_backup">Local Auto-Backup</string>
     <string name="auto_backup">Auto Backup</string>
-    <string name="auto_backup_subtitle">Automatically back up your journal daily</string>
+    <string name="auto_backup_subtitle">Automatically back up your journal to local storage</string>
+    <string name="future_date_not_allowed">Entries cannot be created for future dates</string>
+    <string name="back_to_today">Back to Today</string>
+    <string name="previous_month">Previous Month</string>
+    <string name="next_month">Next Month</string>
+    <string name="restore_backup_confirm_title">Restore Journal Backup?</string>
+    <string name="restore_backup_confirm_message">This archive contains %1$d entries across %2$d journals (from %3$s to %4$s).\n\nRestoring will replace all current journals and entries. An automatic safety backup will be created before proceeding.</string>
+    <string name="restore_backup_proceed">Restore &amp; Replace</string>
     <string name="backup_now">Backup Now</string>
     <string name="last_backup">Last backup: %1$s</string>
     <string name="never_backed_up">Never</string>
@@ -205,7 +212,7 @@
     <string name="premium_description">Unlock the complete, distraction-free journaling experience.</string>
     <string name="premium_feature_ad_free">100% Ad-Free Experience</string>
     <string name="premium_feature_themes">All 6 Aesthetic Color Themes</string>
-    <string name="premium_feature_cloud_backup">Automated Cloud &amp; Drive Backup</string>
+    <string name="premium_feature_cloud_backup">Automated Local &amp; Storage Backup</string>
     <string name="premium_feature_unlimited">Unlimited Audio Notes &amp; Photos</string>
     <string name="premium_continue">Continue</string>
     <string name="premium_restore">Restore Purchases</string>
@@ -259,6 +266,8 @@
     <string name="play_video">Play Video</string>
     <string name="remove_media">Remove media</string>
     <string name="add_media">Add Media</string>
+    <string name="add_media_up_to_10">Add photos (up to 10)</string>
+    <string name="max_media_reached">Maximum 10 media reached</string>
 
     <!-- ViewModel -->
     <string name="save_failed">Could not save entry.</string>
