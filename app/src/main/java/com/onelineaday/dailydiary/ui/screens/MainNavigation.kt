@@ -309,7 +309,12 @@ fun MainNavigation(
                 StatsScreen(
                     viewModel = viewModel,
                     uiState = uiState,
-                    onNavigateToYearInPixels = { navController.navigate("year_in_pixels") }
+                    onNavigateToYearInPixels = { navController.navigate("year_in_pixels") },
+                    onNavigateToLifePatterns = { navController.navigate("life_patterns") },
+                    onNavigateToTimeCapsules = { navController.navigate("time_capsules") },
+                    onNavigateToZenGarden = { navController.navigate("zen_garden") },
+                    onNavigateToConstellation = { navController.navigate("constellation") },
+                    onNavigateToMonthlyReel = { navController.navigate("monthly_reel") }
                 )
             }
             
@@ -380,6 +385,64 @@ fun MainNavigation(
                             restoreState = true
                         }
                     }
+                )
+            }
+
+            composable(
+                route = "life_patterns",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                LifePatternsScreen(
+                    entries = uiState.entries,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = "time_capsules",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                TimeCapsulesScreen(
+                    journalId = uiState.activeJournalId ?: "default",
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = "zen_garden",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                ZenGardenScreen(
+                    currentStreak = uiState.currentStreak,
+                    longestStreak = uiState.longestStreak,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = "constellation",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                ConstellationScreen(
+                    entries = uiState.entries,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry }
+                )
+            }
+
+            composable(
+                route = "monthly_reel",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                MonthlyReelScreen(
+                    entries = uiState.entries,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry }
                 )
             }
         }

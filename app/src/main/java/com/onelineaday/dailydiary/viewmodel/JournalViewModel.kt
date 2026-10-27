@@ -501,9 +501,16 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
 
         searchJob = viewModelScope.launch {
             delay(250)
-            repository.searchEntries(query.trim(), journalId).collectLatest { results ->
+            repository.searchEntries(query.trim(), journalId).collectLatest { sqlResults ->
                 if (_uiState.value.searchQuery.trim() == query.trim() && _activeJournalId.value == journalId) {
-                    _uiState.update { it.copy(searchResults = results) }
+                    val smartMatches = com.onelineaday.dailydiary.search.SmartSearchEngine.search(_uiState.value.entries, query.trim())
+                    val combinedResults = if (smartMatches.isNotEmpty()) {
+                        val smartEntries: List<com.onelineaday.dailydiary.data.JournalEntry> = smartMatches.map { it.entry }
+                        (smartEntries + sqlResults).distinctBy { "${it.journalId}_${it.date}" }
+                    } else {
+                        sqlResults
+                    }
+                    _uiState.update { it.copy(searchResults = combinedResults) }
                 }
             }
         }

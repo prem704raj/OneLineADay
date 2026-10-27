@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.onelineaday.dailydiary.R
 import com.onelineaday.dailydiary.ui.components.*
@@ -27,6 +28,11 @@ fun StatsScreen(
     viewModel: JournalViewModel,
     uiState: JournalUiState,
     onNavigateToYearInPixels: () -> Unit = {},
+    onNavigateToLifePatterns: () -> Unit = {},
+    onNavigateToTimeCapsules: () -> Unit = {},
+    onNavigateToZenGarden: () -> Unit = {},
+    onNavigateToConstellation: () -> Unit = {},
+    onNavigateToMonthlyReel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -92,9 +98,13 @@ fun StatsScreen(
                     longestStreak = uiState.longestStreak
                 )
                 
-                // Year in Review
-                YearInReviewCard(
-                    entries = uiState.entries
+                // Memory Universe & Mindset Suite (Milestone 5)
+                MemoryUniverseSection(
+                    onNavigateToLifePatterns = onNavigateToLifePatterns,
+                    onNavigateToConstellation = onNavigateToConstellation,
+                    onNavigateToZenGarden = onNavigateToZenGarden,
+                    onNavigateToTimeCapsules = onNavigateToTimeCapsules,
+                    onNavigateToMonthlyReel = onNavigateToMonthlyReel
                 )
                 
                 // Stats Grid
@@ -426,5 +436,125 @@ fun YearStatItem(
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+fun MemoryUniverseSection(
+    onNavigateToLifePatterns: () -> Unit,
+    onNavigateToConstellation: () -> Unit,
+    onNavigateToZenGarden: () -> Unit,
+    onNavigateToTimeCapsules: () -> Unit,
+    onNavigateToMonthlyReel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "✨", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Memory Universe & Mindset",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            UniverseFeatureItem(
+                emoji = "🧬",
+                title = "Life Patterns & Rhythms",
+                description = "Peak mood days, word trends, and consistency rates",
+                onClick = onNavigateToLifePatterns
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            UniverseFeatureItem(
+                emoji = "🌌",
+                title = "Memory Constellation",
+                description = "Interactive celestial star map woven from your thoughts",
+                onClick = onNavigateToConstellation
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            UniverseFeatureItem(
+                emoji = "🪴",
+                title = "Zen Garden & Mindfulness",
+                description = "Streak sanctuary, breathing guide & tranquility artifacts",
+                onClick = onNavigateToZenGarden
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            UniverseFeatureItem(
+                emoji = "⏳",
+                title = "Time Capsules",
+                description = "Time-locked sealed letters to your future self",
+                onClick = onNavigateToTimeCapsules
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            UniverseFeatureItem(
+                emoji = "🎬",
+                title = "Monthly Photo Reel",
+                description = "Watch your photo memories in 1-second daily motions",
+                onClick = onNavigateToMonthlyReel
+            )
+        }
+    }
+}
+
+@Composable
+private fun UniverseFeatureItem(
+    emoji: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = emoji, fontSize = 24.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
