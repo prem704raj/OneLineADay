@@ -258,15 +258,67 @@ object PdfExportHelper {
                 .setIncludePad(false)
                 .build()
 
-            ensureSpace(layout.height.toFloat() + spacingAfter)
+            val maxPageUsableHeight = PAGE_HEIGHT - (MARGIN * 2)
 
-            val currentCanvas = canvas ?: return
-            currentCanvas.save()
-            currentCanvas.translate(MARGIN, y)
-            layout.draw(currentCanvas)
-            currentCanvas.restore()
+            if (layout.height <= maxPageUsableHeight) {
+                ensureSpace(layout.height.toFloat() + spacingAfter)
 
-            y += layout.height + spacingAfter
+                val currentCanvas = canvas ?: return
+                currentCanvas.save()
+                currentCanvas.translate(MARGIN, y)
+                layout.draw(currentCanvas)
+                currentCanvas.restore()
+
+                y += layout.height + spacingAfter
+                return
+            }
+
+            // For very long entries exceeding a single page, draw line by line
+            ensurePage()
+            var startLine = 0
+            while (startLine < layout.lineCount) {
+                val availableSpace = (PAGE_HEIGHT - MARGIN) - y
+                val firstLineHeight = layout.getLineBottom(startLine) - layout.getLineTop(startLine)
+                if (availableSpace < firstLineHeight) {
+                    finishPage()
+                    startPage()
+                }
+
+                val currentAvailable = (PAGE_HEIGHT - MARGIN) - y
+                var endLine = startLine
+                while (endLine < layout.lineCount) {
+                    val chunkHeight = layout.getLineBottom(endLine) - layout.getLineTop(startLine)
+                    if (chunkHeight > currentAvailable && endLine > startLine) {
+                        break
+                    }
+                    endLine++
+                }
+
+                val startTop = layout.getLineTop(startLine)
+                val endBottom = layout.getLineBottom(endLine - 1)
+                val drawnHeight = (endBottom - startTop).toFloat()
+
+                val currentCanvas = canvas ?: return
+                currentCanvas.save()
+                currentCanvas.clipRect(
+                    MARGIN,
+                    y,
+                    MARGIN + CONTENT_WIDTH,
+                    y + drawnHeight
+                )
+                currentCanvas.translate(MARGIN, y - startTop)
+                layout.draw(currentCanvas)
+                currentCanvas.restore()
+
+                y += drawnHeight
+                startLine = endLine
+
+                if (startLine < layout.lineCount) {
+                    finishPage()
+                    startPage()
+                }
+            }
+            y += spacingAfter
         }
 
         private fun drawImageIfPossible(path: String) {
@@ -326,8 +378,7 @@ object PdfExportHelper {
         }
 
         private fun isLikelyVideo(path: String): Boolean {
-            val lower = path.lowercase()
-            return lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".3gp")
+            return com.onelineaday.dailydiary.ui.components.isVideoMedia(path)
         }
 
         private fun ensurePage() {

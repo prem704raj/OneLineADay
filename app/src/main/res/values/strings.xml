@@ -324,4 +324,24 @@
     <string name="pdf_longest_streak">Longest streak: %1$d</string>
     <string name="pdf_voice_attached">Voice note attached</string>
     <string name="pdf_video_attached">Video attached</string>
+
+    <!-- Flashback Notifications & On This Day -->
+    <string name="flashback_channel_name">On This Day Flashbacks</string>
+    <string name="flashback_channel_description">Morning memories from previous years</string>
+    <string name="flashback_notification_title">On This Day</string>
+    <string name="flashback_teaser_one_year">You have memories from 1 year ago today. Tap to unlock.</string>
+    <string name="flashback_teaser_x_years">You have memories from %1$d years ago today. Tap to unlock.</string>
+    <string name="flashback_teaser_multi_years">You have memories from past years today. Tap to unlock.</string>
+    <string name="flashback_public_teaser">Flashback memory ready. Tap to unlock.</string>
+    <string name="on_this_day_title">On This Day</string>
+    <string name="on_this_day_no_memories">No memories on this day yet. Keep journaling to build your 5-year timeline!</string>
+    <string name="leap_day_badge">✨ Leap Day Memory</string>
+    <string name="leap_day_observed_badge">✨ Observed from Feb 29</string>
+    <string name="share_story_card">Share Story</string>
+
+    <!-- Daily Spark Prompts -->
+    <string name="daily_spark_title">Daily Spark</string>
+    <string name="answer_prompt">Answer Prompt</string>
+    <string name="shuffle_prompt">Shuffle</string>
+    <string name="prompt_answered">Answered</string>
 </resources>

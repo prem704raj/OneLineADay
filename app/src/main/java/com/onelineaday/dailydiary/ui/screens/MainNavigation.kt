@@ -17,14 +17,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.onelineaday.dailydiary.viewmodel.JournalViewModel
+import androidx.navigation.navArgument
 import androidx.compose.ui.platform.LocalContext
+import com.onelineaday.dailydiary.viewmodel.JournalViewModel
+import java.time.LocalDate
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 
 import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
 import com.onelineaday.dailydiary.R
+import com.onelineaday.dailydiary.data.JournalEntry
+import com.onelineaday.dailydiary.data.Mood
 
 sealed class Screen(
     val route: String,
@@ -82,6 +86,8 @@ fun MainNavigation(
     onThemeModeChange: (String) -> Unit,
     currentAppTheme: com.onelineaday.dailydiary.ui.theme.AppTheme = com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT,
     onThemeChange: (com.onelineaday.dailydiary.ui.theme.AppTheme) -> Unit = {},
+    pendingNavDestination: String? = null,
+    onClearPendingNavDestination: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -89,6 +95,13 @@ fun MainNavigation(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    LaunchedEffect(pendingNavDestination) {
+        if (!pendingNavDestination.isNullOrBlank()) {
+            navController.navigate(pendingNavDestination)
+            onClearPendingNavDestination()
+        }
+    }
     
     DisposableEffect(lifecycleOwner) {
         val shakeDetector = com.onelineaday.dailydiary.utils.ShakeDetector {
@@ -129,22 +142,60 @@ fun MainNavigation(
     val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
     val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
     
+    var viewingDetailEntry by remember { mutableStateOf<JournalEntry?>(null) }
+    var editingDetailEntry by remember { mutableStateOf<JournalEntry?>(null) }
+
+    if (viewingDetailEntry != null) {
+        editingDetailEntry?.let { entry ->
+            EditEntryDialog(
+                entry = entry,
+                viewModel = viewModel,
+                onDismiss = { editingDetailEntry = null },
+                onSave = { newContent, newMood, newPhotoUri, newMediaUris, newTags ->
+                    viewModel.updateEntry(
+                        entry = entry,
+                        newContent = newContent,
+                        newMood = newMood,
+                        newPhotoUri = newPhotoUri,
+                        newMediaUris = newMediaUris,
+                        newAudioUri = entry.audioUri,
+                        newTags = newTags
+                    )
+                    viewingDetailEntry = entry.copy(
+                        content = newContent,
+                        mood = newMood,
+                        photoUri = newPhotoUri,
+                        mediaUris = newMediaUris,
+                        tags = newTags
+                    )
+                    editingDetailEntry = null
+                }
+            )
+        }
+
+        EntryDetailScreen(
+            entry = viewingDetailEntry!!,
+            onBack = { viewingDetailEntry = null },
+            onEdit = { editingDetailEntry = viewingDetailEntry },
+            onDelete = {
+                viewModel.deleteEntry(viewingDetailEntry!!)
+                viewingDetailEntry = null
+            },
+            onTogglePin = {
+                val entry = viewingDetailEntry!!
+                val updated = entry.copy(isPinned = !entry.isPinned)
+                viewModel.togglePin(entry)
+                viewingDetailEntry = updated
+            }
+        )
+        return
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         // Prevent applying the top system inset twice. Each screen manages its own top bar / status bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    com.onelineaday.dailydiary.ads.BannerAdView()
-                }
-            }
-        },
+        topBar = {},
         bottomBar = {
             Column {
                 if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
@@ -211,7 +262,9 @@ fun MainNavigation(
             ) {
                 HomeScreen(
                     viewModel = viewModel,
-                    uiState = uiState
+                    uiState = uiState,
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry },
+                    onNavigateToOnThisDay = { navController.navigate("on_this_day") }
                 )
             }
             
@@ -233,9 +286,8 @@ fun MainNavigation(
             ) {
                 CalendarScreen(
                     viewModel = viewModel,
-                    onNavigateToDetail = { entry ->
-                        // Add navigation logic if detail screen is implemented
-                    },
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry },
+                    onNavigateToYearInPixels = { navController.navigate("year_in_pixels") },
                     onNavigateToWrite = { date ->
                         viewModel.setSelectedDate(date)
                         navController.navigate(Screen.Home.route) {
@@ -256,7 +308,8 @@ fun MainNavigation(
             ) {
                 StatsScreen(
                     viewModel = viewModel,
-                    uiState = uiState
+                    uiState = uiState,
+                    onNavigateToYearInPixels = { navController.navigate("year_in_pixels") }
                 )
             }
             
@@ -283,6 +336,50 @@ fun MainNavigation(
             ) {
                 PrivacyPolicyScreen(
                     onBackClick = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = "on_this_day?date={date}",
+                arguments = listOf(
+                    navArgument("date") {
+                        nullable = true
+                        defaultValue = null
+                    }
+                ),
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) { backStackEntry ->
+                val dateArg = backStackEntry.arguments?.getString("date")
+                val initialDate = dateArg?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+                OnThisDayScreen(
+                    viewModel = viewModel,
+                    initialDate = initialDate,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry }
+                )
+            }
+
+            composable(
+                route = "year_in_pixels",
+                enterTransition = { fadeIn() + slideInHorizontally() },
+                exitTransition = { fadeOut() + slideOutHorizontally() }
+            ) {
+                YearInPixelsScreen(
+                    viewModel = viewModel,
+                    uiState = uiState,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDetail = { entry -> viewingDetailEntry = entry },
+                    onNavigateToWrite = { date ->
+                        viewModel.setSelectedDate(date)
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
         }

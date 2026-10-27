@@ -49,6 +49,12 @@ import com.onelineaday.dailydiary.viewmodel.JournalUiState
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
 import com.onelineaday.dailydiary.backup.BackupExportResult
 import com.onelineaday.dailydiary.backup.BackupRestoreResult
+import com.onelineaday.dailydiary.backup.EncryptedBackupManager
+import com.onelineaday.dailydiary.backup.CloudBackupManager
+import com.onelineaday.dailydiary.backup.cloud.CloudBackupPrefs
+import com.onelineaday.dailydiary.backup.crypto.BackupContainerType
+import com.onelineaday.dailydiary.data.JournalDatabase
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.onelineaday.dailydiary.utils.PdfExportHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -139,32 +145,441 @@ fun SettingsScreen(
     var isRestoringBackup by remember { mutableStateOf(false) }
     var isExportingBackup by remember { mutableStateOf(false) }
     var showBackupPrivacyDialog by remember { mutableStateOf(false) }
-    
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var restorePreview by remember { mutableStateOf<com.onelineaday.dailydiary.backup.BackupPreviewResult.Success?>(null) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+
+    val cloudBackupPrefs = remember { CloudBackupPrefs(context) }
+    var showPassphraseSetupDialog by remember { mutableStateOf(false) }
+    var showWebDavConfigDialog by remember { mutableStateOf(false) }
+    var showProviderSelectDialog by remember { mutableStateOf(false) }
+    var showRestorePassphraseDialog by remember { mutableStateOf(false) }
+    var pendingEncryptedRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var enteredRestorePassphrase by remember { mutableStateOf("") }
+    var isLegacyRestore by remember { mutableStateOf(false) }
+    var isPassphraseSaved by remember { mutableStateOf(cloudBackupPrefs.hasSavedPassphrase()) }
+    var activeProvider by remember { mutableStateOf(cloudBackupPrefs.getActiveProviderType()) }
+    var lastSyncStatus by remember { mutableStateOf(cloudBackupPrefs.getLastBackupStatus()) }
+    var lastSyncTime by remember { mutableStateOf(cloudBackupPrefs.getLastBackupTimestamp()) }
+
+    var showRestDaysDialog by remember { mutableStateOf(false) }
+    var showAiKeyDialog by remember { mutableStateOf(false) }
+    val aiKeyManager = remember { viewModel.aiKeyManager }
+    var isAiOptIn by remember { mutableStateOf(aiKeyManager.isCloudAiOptIn()) }
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
                 isRestoringBackup = true
-                when (val result = viewModel.restoreBackup(uri)) {
-                    is BackupRestoreResult.Success -> {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.restore_success, result.restoredEntries, result.restoredJournals),
-                            Toast.LENGTH_LONG
-                        ).show()
+                val db = JournalDatabase.getDatabase(context)
+                val encManager = EncryptedBackupManager(context, db)
+                when (val containerType = encManager.detectContainerType(uri)) {
+                    is BackupContainerType.Encrypted -> {
+                        val saved = cloudBackupPrefs.getSavedPassphrase()
+                        if (saved != null && saved.isNotEmpty()) {
+                            when (val preview = encManager.inspectBackup(uri, saved)) {
+                                is com.onelineaday.dailydiary.backup.BackupPreviewResult.Success -> {
+                                    pendingRestoreUri = uri
+                                    enteredRestorePassphrase = String(saved)
+                                    restorePreview = preview
+                                    isLegacyRestore = false
+                                    showRestoreConfirmDialog = true
+                                }
+                                else -> {
+                                    pendingEncryptedRestoreUri = uri
+                                    enteredRestorePassphrase = ""
+                                    showRestorePassphraseDialog = true
+                                }
+                            }
+                        } else {
+                            pendingEncryptedRestoreUri = uri
+                            enteredRestorePassphrase = ""
+                            showRestorePassphraseDialog = true
+                        }
                     }
-                    is BackupRestoreResult.Failure -> {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.restore_failed, result.reason),
-                            Toast.LENGTH_LONG
-                        ).show()
+                    is BackupContainerType.LegacyZip -> {
+                        when (val preview = encManager.inspectBackup(uri, null)) {
+                            is com.onelineaday.dailydiary.backup.BackupPreviewResult.Success -> {
+                                pendingRestoreUri = uri
+                                restorePreview = preview
+                                isLegacyRestore = true
+                                showRestoreConfirmDialog = true
+                            }
+                            is com.onelineaday.dailydiary.backup.BackupPreviewResult.Failure -> {
+                                Toast.makeText(context, context.getString(R.string.restore_failed, preview.reason), Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    is BackupContainerType.Invalid -> {
+                        Toast.makeText(context, "Selected file is not a valid OneLineADay backup archive.", Toast.LENGTH_LONG).show()
                     }
                 }
                 isRestoringBackup = false
             }
         }
+    }
+
+    if (showRestorePassphraseDialog && pendingEncryptedRestoreUri != null) {
+        var passInput by remember { mutableStateOf("") }
+        var passError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = {
+                showRestorePassphraseDialog = false
+                pendingEncryptedRestoreUri = null
+            },
+            icon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Encrypted Backup Passphrase") },
+            text = {
+                Column {
+                    Text(
+                        "This backup is protected with AES-256-GCM encryption. Enter the passphrase created when this backup was exported.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = passInput,
+                        onValueChange = { passInput = it; passError = null },
+                        label = { Text("Passphrase") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = passError != null,
+                        supportingText = passError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (passInput.isEmpty()) {
+                            passError = "Passphrase cannot be empty"
+                            return@Button
+                        }
+                        scope.launch {
+                            isRestoringBackup = true
+                            val db = JournalDatabase.getDatabase(context)
+                            val encManager = EncryptedBackupManager(context, db)
+                            val uri = pendingEncryptedRestoreUri!!
+                            when (val preview = encManager.inspectBackup(uri, passInput.toCharArray())) {
+                                is com.onelineaday.dailydiary.backup.BackupPreviewResult.Success -> {
+                                    showRestorePassphraseDialog = false
+                                    pendingRestoreUri = uri
+                                    enteredRestorePassphrase = passInput
+                                    restorePreview = preview
+                                    isLegacyRestore = false
+                                    showRestoreConfirmDialog = true
+                                }
+                                is com.onelineaday.dailydiary.backup.BackupPreviewResult.Failure -> {
+                                    passError = "Incorrect passphrase or corrupted archive"
+                                }
+                            }
+                            isRestoringBackup = false
+                        }
+                    }
+                ) {
+                    Text("Unlock & Preview")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestorePassphraseDialog = false
+                        pendingEncryptedRestoreUri = null
+                    }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showRestoreConfirmDialog && restorePreview != null && pendingRestoreUri != null) {
+        val preview = restorePreview!!
+        val uriToRestore = pendingRestoreUri!!
+        AlertDialog(
+            onDismissRequest = {
+                showRestoreConfirmDialog = false
+                pendingRestoreUri = null
+                restorePreview = null
+            },
+            title = {
+                Text(stringResource(R.string.restore_backup_confirm_title))
+            },
+            text = {
+                Column {
+                    if (isLegacyRestore) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = "Notice: Unencrypted Legacy Archive. We recommend exporting an encrypted backup after restore.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        stringResource(
+                            R.string.restore_backup_confirm_message,
+                            preview.entryCount,
+                            preview.journalCount,
+                            preview.minDate ?: "—",
+                            preview.maxDate ?: "—"
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                        scope.launch {
+                            isRestoringBackup = true
+                            val db = JournalDatabase.getDatabase(context)
+                            val encManager = EncryptedBackupManager(context, db)
+                            val passChars = if (isLegacyRestore) null else enteredRestorePassphrase.toCharArray()
+                            when (val result = encManager.restoreBackup(uriToRestore, passChars)) {
+                                is BackupRestoreResult.Success -> {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.restore_success, result.restoredEntries, result.restoredJournals),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    viewModel.restoreBackup(uriToRestore)
+                                }
+                                is BackupRestoreResult.Failure -> {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.restore_failed, result.reason),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                            isRestoringBackup = false
+                            pendingRestoreUri = null
+                            restorePreview = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(stringResource(R.string.restore_backup_proceed))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                        pendingRestoreUri = null
+                        restorePreview = null
+                    }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showPassphraseSetupDialog) {
+        var newPass by remember { mutableStateOf("") }
+        var confirmPass by remember { mutableStateOf("") }
+        var saveInKeystore by remember { mutableStateOf(true) }
+        var passError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showPassphraseSetupDialog = false },
+            icon = { Icon(Icons.Rounded.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Backup Recovery Passphrase") },
+            text = {
+                Column {
+                    Text(
+                        "Set a strong recovery passphrase to encrypt your backups with AES-256-GCM. Your passphrase is never sent to any server.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = newPass,
+                        onValueChange = { newPass = it; passError = null },
+                        label = { Text("Passphrase (min 6 characters)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = confirmPass,
+                        onValueChange = { confirmPass = it; passError = null },
+                        label = { Text("Confirm Passphrase") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = passError != null,
+                        supportingText = passError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { saveInKeystore = !saveInKeystore }
+                    ) {
+                        Checkbox(checked = saveInKeystore, onCheckedChange = { saveInKeystore = it })
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Save securely in Android Keystore for automated background backup",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPass.length < 6) {
+                            passError = "Passphrase must be at least 6 characters"
+                            return@Button
+                        }
+                        if (newPass != confirmPass) {
+                            passError = "Passphrases do not match"
+                            return@Button
+                        }
+                        if (saveInKeystore) {
+                            cloudBackupPrefs.savePassphrase(newPass.toCharArray())
+                            isPassphraseSaved = true
+                        } else {
+                            cloudBackupPrefs.clearSavedPassphrase()
+                            isPassphraseSaved = false
+                        }
+                        showPassphraseSetupDialog = false
+                        Toast.makeText(context, "Passphrase configured successfully", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPassphraseSetupDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showProviderSelectDialog) {
+        val providers = listOf(
+            "none" to "None (Local Only)",
+            "google_drive" to "Google Drive (App Data folder)",
+            "webdav" to "WebDAV (Nextcloud / NAS)"
+        )
+        AlertDialog(
+            onDismissRequest = { showProviderSelectDialog = false },
+            icon = { Icon(Icons.Rounded.CloudQueue, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Select Cloud Storage Provider") },
+            text = {
+                Column {
+                    providers.forEach { (id, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    activeProvider = id
+                                    cloudBackupPrefs.setActiveProviderType(id)
+                                    showProviderSelectDialog = false
+                                    if (id == "webdav" && cloudBackupPrefs.getWebDavServerUrl().isBlank()) {
+                                        showWebDavConfigDialog = true
+                                    }
+                                }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(
+                                selected = (activeProvider == id),
+                                onClick = {
+                                    activeProvider = id
+                                    cloudBackupPrefs.setActiveProviderType(id)
+                                    showProviderSelectDialog = false
+                                    if (id == "webdav" && cloudBackupPrefs.getWebDavServerUrl().isBlank()) {
+                                        showWebDavConfigDialog = true
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showProviderSelectDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showWebDavConfigDialog) {
+        var serverUrl by remember { mutableStateOf(cloudBackupPrefs.getWebDavServerUrl()) }
+        var username by remember { mutableStateOf(cloudBackupPrefs.getWebDavUsername()) }
+        var password by remember { mutableStateOf(cloudBackupPrefs.getWebDavPassword()) }
+        var webDavError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showWebDavConfigDialog = false },
+            icon = { Icon(Icons.Rounded.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("WebDAV Server Configuration") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = { serverUrl = it; webDavError = null },
+                        label = { Text("Server URL (e.g. https://cloud.example.com/dav)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it; webDavError = null },
+                        label = { Text("Username") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it; webDavError = null },
+                        label = { Text("Password / App Token") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (webDavError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(webDavError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (serverUrl.isBlank() || username.isBlank()) {
+                            webDavError = "Server URL and Username are required."
+                            return@Button
+                        }
+                        cloudBackupPrefs.setWebDavConfig(serverUrl.trim(), username.trim(), password)
+                        showWebDavConfigDialog = false
+                        Toast.makeText(context, "WebDAV settings saved", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWebDavConfigDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
     
     fun toggleNotifications(enabled: Boolean) {
@@ -697,47 +1112,253 @@ fun SettingsScreen(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // Cloud Backup Section
+                // Material 3 Cloud Backup Section
                 SettingsSection(title = stringResource(R.string.cloud_backup)) {
-                    var autoBackupEnabled by remember { mutableStateOf(prefs.getBoolean("auto_backup_enabled", false)) }
-                    SettingsToggleItem(
-                        icon = Icons.Rounded.CloudUpload,
-                        title = stringResource(R.string.auto_backup),
-                        subtitle = stringResource(R.string.auto_backup_subtitle),
-                        isChecked = autoBackupEnabled,
-                        onCheckedChange = { enabled ->
-                            autoBackupEnabled = enabled
-                            prefs.edit().putBoolean("auto_backup_enabled", enabled).apply()
-                            val cloudBackupManager = com.onelineaday.dailydiary.backup.CloudBackupManager(context)
-                            if (enabled) {
-                                cloudBackupManager.scheduleAutoBackup(24)
-                            } else {
-                                cloudBackupManager.cancelAutoBackup()
+                    // Live Sync Status Card
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = when (activeProvider) {
+                                            "google_drive" -> Icons.Rounded.Cloud
+                                            "webdav" -> Icons.Rounded.Storage
+                                            else -> Icons.Rounded.CloudOff
+                                        },
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = when (activeProvider) {
+                                            "google_drive" -> "Google Drive Sync"
+                                            "webdav" -> "WebDAV Sync"
+                                            else -> "Cloud Sync Disabled"
+                                        },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                SuggestionChip(
+                                    onClick = { showProviderSelectDialog = true },
+                                    label = {
+                                        Text(
+                                            when (lastSyncStatus) {
+                                                "SUCCESS" -> "Synced"
+                                                "FAILED" -> "Failed"
+                                                "AUTH_EXPIRED" -> "Re-auth"
+                                                else -> "Ready"
+                                            }
+                                        )
+                                    },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (lastSyncStatus == "SUCCESS") Icons.Rounded.CheckCircle else Icons.Rounded.Sync,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = if (lastSyncStatus == "SUCCESS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val lastSyncStr = if (lastSyncTime > 0) {
+                                java.text.DateFormat.getDateTimeInstance().format(java.util.Date(lastSyncTime))
+                            } else {
+                                stringResource(R.string.never_backed_up)
+                            }
+                            Text(
+                                text = "Last Sync: $lastSyncStr",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
+                    }
+
+                    // Cloud Provider Selection
+                    SettingsItem(
+                        icon = Icons.Rounded.CloudQueue,
+                        title = "Cloud Storage Provider",
+                        subtitle = when (activeProvider) {
+                            "google_drive" -> "Google Drive (App Data folder)"
+                            "webdav" -> "WebDAV (${cloudBackupPrefs.getWebDavServerUrl().ifBlank { "Not configured" }})"
+                            else -> "None (Local storage only)"
+                        },
+                        onClick = { showProviderSelectDialog = true }
                     )
-                    
+
+                    if (activeProvider == "webdav") {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                        SettingsItem(
+                            icon = Icons.Rounded.Dns,
+                            title = "WebDAV Server Configuration",
+                            subtitle = if (cloudBackupPrefs.getWebDavServerUrl().isNotBlank()) cloudBackupPrefs.getWebDavServerUrl() else "Tap to configure Nextcloud/NAS server",
+                            onClick = { showWebDavConfigDialog = true }
+                        )
+                    }
+
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 56.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
-                    
-                    val lastBackup = prefs.getLong("last_auto_backup", 0L)
-                    val lastBackupStr = if (lastBackup > 0) java.text.DateFormat.getDateTimeInstance().format(java.util.Date(lastBackup)) else stringResource(R.string.never_backed_up)
-                    
+
+                    // Passphrase Configuration
+                    SettingsItem(
+                        icon = Icons.Rounded.Key,
+                        title = "Backup Encryption Passphrase",
+                        subtitle = if (isPassphraseSaved) "Protected by Android Keystore (AES-256-GCM)" else "Set recovery passphrase for automated sync",
+                        onClick = { showPassphraseSetupDialog = true }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    // Auto Backup Toggle
+                    var autoBackupEnabled by remember { mutableStateOf(cloudBackupPrefs.isAutoBackupEnabled()) }
+                    SettingsToggleItem(
+                        icon = Icons.Rounded.CloudUpload,
+                        title = stringResource(R.string.auto_backup),
+                        subtitle = "Daily background backup (Wi-Fi and battery not low)",
+                        isChecked = autoBackupEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled && !cloudBackupPrefs.hasSavedPassphrase()) {
+                                showPassphraseSetupDialog = true
+                            } else {
+                                autoBackupEnabled = enabled
+                                val cloudBackupManager = CloudBackupManager(context)
+                                if (enabled) {
+                                    cloudBackupManager.scheduleAutoBackup(24, requireUnmetered = true, requireBatteryNotLow = true)
+                                } else {
+                                    cloudBackupManager.cancelAutoBackup()
+                                }
+                            }
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    // Immediate Backup Now
                     SettingsItem(
                         icon = Icons.Rounded.Backup,
                         title = stringResource(R.string.backup_now),
-                        subtitle = stringResource(R.string.last_backup, lastBackupStr),
+                        subtitle = "Trigger immediate encrypted backup",
                         isLoading = isExportingBackup,
-                        onClick = { 
-                            showBackupPrivacyDialog = true
+                        onClick = {
+                            if (activeProvider != "none" && cloudBackupPrefs.hasSavedPassphrase()) {
+                                CloudBackupManager(context).triggerImmediateBackup()
+                                Toast.makeText(context, "Cloud backup enqueued in background.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                showBackupPrivacyDialog = true
+                            }
                         }
                     )
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // Habit Resilience & Streak Freezes Section
+                SettingsSection(title = "Habit Resilience & Streaks") {
+                    SettingsItem(
+                        icon = Icons.Rounded.AcUnit,
+                        title = "Streak Freezes",
+                        subtitle = "${uiState.availableFreezes} of 5 available (Earn 1 every 7 days)",
+                        onClick = {
+                            Toast.makeText(context, "Streak Freezes automatically protect your streak when life gets busy. Earn up to 5 freezes through daily consistency.", Toast.LENGTH_LONG).show()
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    val restDaysLabel = when {
+                        uiState.restDays.isEmpty() -> "None (Every day counts)"
+                        uiState.restDays == setOf(java.time.DayOfWeek.SUNDAY) -> "Sundays only"
+                        uiState.restDays == setOf(java.time.DayOfWeek.SATURDAY, java.time.DayOfWeek.SUNDAY) -> "Weekends (Sat & Sun)"
+                        else -> "${uiState.restDays.size} days per week"
+                    }
+
+                    SettingsItem(
+                        icon = Icons.Rounded.Weekend,
+                        title = "Scheduled Rest Days",
+                        subtitle = restDaysLabel,
+                        onClick = { showRestDaysDialog = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // AI & Voice Privacy (BYOK) Section
+                SettingsSection(title = "AI & Voice Privacy") {
+                    SettingsItem(
+                        icon = Icons.Rounded.Mic,
+                        title = "Voice Dictation & Transcription",
+                        subtitle = "100% On-Device (Zero cloud audio upload)",
+                        onClick = {
+                            Toast.makeText(context, "Speech recognition runs locally via Android on-device speech packs. Your voice is never streamed to external servers.", Toast.LENGTH_LONG).show()
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    SettingsToggleItem(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = "Cloud AI Features (Opt-In)",
+                        subtitle = if (isAiOptIn) "Enabled (Requires personal API key)" else "Disabled (100% offline local processing)",
+                        isChecked = isAiOptIn,
+                        onCheckedChange = { optIn ->
+                            if (optIn && !aiKeyManager.hasApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI)) {
+                                showAiKeyDialog = true
+                            } else {
+                                isAiOptIn = optIn
+                                aiKeyManager.setCloudAiOptIn(optIn)
+                            }
+                        }
+                    )
+
+                    if (isAiOptIn) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        val hasKey = aiKeyManager.hasApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI)
+                        SettingsItem(
+                            icon = Icons.Rounded.VpnKey,
+                            title = "Gemini API Key (BYOK)",
+                            subtitle = if (hasKey) "Stored securely in Android Keystore" else "Tap to configure your API key",
+                            onClick = { showAiKeyDialog = true }
+                        )
+                    }
+                }
                 
+                Spacer(modifier = Modifier.height(24.dp))
+
                 // About Section
                 SettingsSection(title = stringResource(R.string.about)) {
                     val appVersion = remember {
@@ -910,6 +1531,116 @@ fun SettingsScreen(
         }
     }
     
+    if (showRestDaysDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestDaysDialog = false },
+            icon = { Icon(Icons.Rounded.Weekend, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Scheduled Rest Days") },
+            text = {
+                Column {
+                    Text(
+                        "Choose designated rest days where missed entries will not break your journaling streak.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val options = listOf(
+                        "None (Daily habit)" to emptySet<java.time.DayOfWeek>(),
+                        "Sundays Only" to setOf(java.time.DayOfWeek.SUNDAY),
+                        "Weekends (Saturday & Sunday)" to setOf(java.time.DayOfWeek.SATURDAY, java.time.DayOfWeek.SUNDAY)
+                    )
+                    options.forEach { (label, set) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setRestDays(set)
+                                    showRestDaysDialog = false
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = uiState.restDays == set,
+                                onClick = {
+                                    viewModel.setRestDays(set)
+                                    showRestDaysDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRestDaysDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    if (showAiKeyDialog) {
+        var keyInput by remember { mutableStateOf(aiKeyManager.getApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI) ?: "") }
+        AlertDialog(
+            onDismissRequest = { showAiKeyDialog = false },
+            icon = { Icon(Icons.Rounded.VpnKey, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Bring Your Own API Key") },
+            text = {
+                Column {
+                    Text(
+                        "Your API key is hardware-encrypted in Android Keystore using AES-256-GCM. We never transmit your key or diary entries to third parties without your explicit request.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = keyInput,
+                        onValueChange = { keyInput = it },
+                        label = { Text("Google Gemini API Key") },
+                        placeholder = { Text("AIzaSy...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        aiKeyManager.saveApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI, keyInput.trim())
+                        if (keyInput.isNotBlank()) {
+                            aiKeyManager.setCloudAiOptIn(true)
+                            isAiOptIn = true
+                        }
+                        showAiKeyDialog = false
+                        Toast.makeText(context, "API Key saved securely.", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                if (aiKeyManager.hasApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI)) {
+                    TextButton(
+                        onClick = {
+                            aiKeyManager.clearApiKey(com.onelineaday.dailydiary.ai.privacy.AiProvider.GEMINI)
+                            aiKeyManager.setCloudAiOptIn(false)
+                            isAiOptIn = false
+                            showAiKeyDialog = false
+                            Toast.makeText(context, "API Key cleared.", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text("Remove Key", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    TextButton(onClick = { showAiKeyDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
+    }
+
     // Backup Privacy Warning Dialog
     if (showBackupPrivacyDialog) {
         AlertDialog(
@@ -936,17 +1667,35 @@ fun SettingsScreen(
                         showBackupPrivacyDialog = false
                         scope.launch {
                             isExportingBackup = true
-                            when (val result = viewModel.exportBackup()) {
-                                is BackupExportResult.Success -> {
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/zip"
-                                        putExtra(Intent.EXTRA_STREAM, result.uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            val savedPass = cloudBackupPrefs.getSavedPassphrase()
+                            if (savedPass != null && savedPass.isNotEmpty()) {
+                                val encManager = EncryptedBackupManager(context, JournalDatabase.getDatabase(context))
+                                when (val result = encManager.exportEncryptedBackup(savedPass)) {
+                                    is BackupExportResult.Success -> {
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/octet-stream"
+                                            putExtra(Intent.EXTRA_STREAM, result.uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Share Encrypted Backup"))
                                     }
-                                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_backup_archive)))
+                                    is BackupExportResult.Failure -> {
+                                        Toast.makeText(context, context.getString(R.string.backup_failed, result.reason), Toast.LENGTH_LONG).show()
+                                    }
                                 }
-                                is BackupExportResult.Failure -> {
-                                    Toast.makeText(context, context.getString(R.string.backup_failed, result.reason), Toast.LENGTH_LONG).show()
+                            } else {
+                                when (val result = viewModel.exportBackup()) {
+                                    is BackupExportResult.Success -> {
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/zip"
+                                            putExtra(Intent.EXTRA_STREAM, result.uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_backup_archive)))
+                                    }
+                                    is BackupExportResult.Failure -> {
+                                        Toast.makeText(context, context.getString(R.string.backup_failed, result.reason), Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
                             isExportingBackup = false

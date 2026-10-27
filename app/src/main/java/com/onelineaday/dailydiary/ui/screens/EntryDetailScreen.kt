@@ -3,9 +3,13 @@ package com.onelineaday.dailydiary.ui.screens
 import androidx.compose.ui.res.stringResource
 import com.onelineaday.dailydiary.R
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,8 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,6 +35,8 @@ import com.onelineaday.dailydiary.ui.components.AudioPlayerView
 import com.onelineaday.dailydiary.ui.components.MoodBadge
 import com.onelineaday.dailydiary.ui.components.StylishEntryText
 import com.onelineaday.dailydiary.ui.components.MediaGallery
+import com.onelineaday.dailydiary.utils.ShareTheme
+import com.onelineaday.dailydiary.utils.ShareImageHelper
 
 import com.onelineaday.dailydiary.ui.components.getMoodColor
 import com.onelineaday.dailydiary.ui.theme.*
@@ -46,7 +57,23 @@ fun EntryDetailScreen(
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
+    var selectedTheme by remember { mutableStateOf(ShareTheme.forMood(entry.mood)) }
+    var previewBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isGeneratingPreview by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showShareDialog, selectedTheme) {
+        if (showShareDialog) {
+            isGeneratingPreview = true
+            previewBitmap = withContext(Dispatchers.IO) {
+                ShareImageHelper.generateEntryBitmap(context, entry, selectedTheme)
+            }
+            isGeneratingPreview = false
+        }
+    }
+
     androidx.activity.compose.BackHandler(onBack = onBack)
     
     Scaffold(
@@ -79,12 +106,7 @@ fun EntryDetailScreen(
                             )
                         }
                     }
-                    val context = LocalContext.current
-                    IconButton(onClick = {
-                        scope.launch {
-                            com.onelineaday.dailydiary.utils.ShareImageHelper.shareEntryAsImage(context, entry)
-                        }
-                    }) {
+                    IconButton(onClick = { showShareDialog = true }) {
                         Icon(
                             imageVector = Icons.Rounded.Share,
                             contentDescription = "Share",
@@ -365,6 +387,116 @@ fun EntryDetailScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
                     Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showShareDialog) {
+        AlertDialog(
+            onDismissRequest = { showShareDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Share Entry Card",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = { showShareDialog = false }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Ultra HD Card Preview
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(230.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isGeneratingPreview || previewBitmap == null) {
+                            CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                        } else {
+                            Image(
+                                bitmap = previewBitmap!!.asImageBitmap(),
+                                contentDescription = "Card Preview",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(4.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Choose Colourful Page Style",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Colorful Theme Chips
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(ShareTheme.values()) { theme ->
+                            FilterChip(
+                                selected = selectedTheme == theme,
+                                onClick = { selectedTheme = theme },
+                                label = { Text("${theme.emoji} ${theme.title}", style = MaterialTheme.typography.bodySmall) },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(androidx.compose.ui.graphics.Color(theme.bgEndColor))
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        previewBitmap?.let { bmp ->
+                            ShareImageHelper.shareBitmap(context, bmp)
+                        }
+                        showShareDialog = false
+                    },
+                    enabled = previewBitmap != null && !isGeneratingPreview,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Share in Ultra HD")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showShareDialog = false }
+                ) {
+                    Text("Cancel")
                 }
             }
         )

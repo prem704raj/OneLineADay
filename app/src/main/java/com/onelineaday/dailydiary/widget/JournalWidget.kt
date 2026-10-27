@@ -80,6 +80,17 @@ class JournalWidget : AppWidgetProvider() {
                 pendingIntent
             )
 
+            val moodActionIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("widget_action", "year_in_pixels")
+            }
+            val moodPendingIntent = PendingIntent.getActivity(
+                context,
+                101,
+                moodActionIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
             val prefs =
                 context.getSharedPreferences(
                     AppLockManager.PREFS_NAME,
@@ -87,10 +98,7 @@ class JournalWidget : AppWidgetProvider() {
                 )
 
             val locked =
-                prefs.getBoolean(
-                    AppLockManager.KEY_APP_LOCK,
-                    false
-                )
+                AppLockManager.getLockType(context) != AppLockManager.LockType.NONE
 
             val journalId =
                 prefs.getString(
@@ -124,7 +132,17 @@ class JournalWidget : AppWidgetProvider() {
                     )
                 )
 
+                views.setOnClickPendingIntent(
+                    R.id.widget_mood,
+                    pendingIntent
+                )
+
             } else {
+
+                views.setOnClickPendingIntent(
+                    R.id.widget_mood,
+                    moodPendingIntent
+                )
 
                 runCatching {
                     JournalDatabase

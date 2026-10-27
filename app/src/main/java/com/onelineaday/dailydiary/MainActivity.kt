@@ -20,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.onelineaday.dailydiary.ads.AdsConsentManager
 import com.onelineaday.dailydiary.billing.BillingManager
+import com.onelineaday.dailydiary.notifications.FlashbackNotificationManager
 import com.onelineaday.dailydiary.security.AppLockManager
 import com.onelineaday.dailydiary.ui.screens.LockScreen
 import com.onelineaday.dailydiary.ui.screens.MainNavigation
@@ -27,6 +28,26 @@ import com.onelineaday.dailydiary.ui.theme.AppTheme
 import com.onelineaday.dailydiary.ui.theme.OneLineADayTheme
 
 class MainActivity : FragmentActivity() {
+
+    private var pendingNavDestination by mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val dest = intent?.getStringExtra(FlashbackNotificationManager.EXTRA_NAV_DESTINATION)
+        if (!dest.isNullOrBlank()) {
+            pendingNavDestination = dest
+        } else {
+            val widgetAction = intent?.getStringExtra("widget_action")
+            if (widgetAction == "year_in_pixels") {
+                pendingNavDestination = "year_in_pixels"
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -77,6 +98,7 @@ class MainActivity : FragmentActivity() {
         BillingManager.init(this)
         AdsConsentManager.gatherConsent(this)
         com.onelineaday.dailydiary.ads.TimedAdManager.init(this, this)
+        handleIntent(intent)
 
         enableEdgeToEdge()
 
@@ -428,11 +450,21 @@ class MainActivity : FragmentActivity() {
                             lockType = lockType,
                             
                             onPinComplete = { pin ->
-                                if (AppLockManager.verifyPin(context, pin)) {
-                                    isUnlocked = true
-                                    authenticationError = null
-                                } else {
-                                    authenticationError = context.getString(R.string.wrong_pin)
+                                when (val result = AppLockManager.verifyPinWithThrottling(context, pin)) {
+                                    is AppLockManager.PinVerificationResult.Success -> {
+                                        isUnlocked = true
+                                        authenticationError = null
+                                    }
+                                    is AppLockManager.PinVerificationResult.Failed -> {
+                                        authenticationError = if (result.remainingAttempts > 0) {
+                                            "${context.getString(R.string.wrong_pin)} (${result.remainingAttempts} attempts remaining)"
+                                        } else {
+                                            context.getString(R.string.wrong_pin)
+                                        }
+                                    }
+                                    is AppLockManager.PinVerificationResult.LockedOut -> {
+                                        authenticationError = "Too many attempts. Try again in ${result.secondsRemaining}s."
+                                    }
                                 }
                             },
 
@@ -472,6 +504,10 @@ class MainActivity : FragmentActivity() {
                             onThemeChange = {
                                 appThemeName =
                                     it.name
+                            },
+                            pendingNavDestination = pendingNavDestination,
+                            onClearPendingNavDestination = {
+                                pendingNavDestination = null
                             }
                         )
                     }

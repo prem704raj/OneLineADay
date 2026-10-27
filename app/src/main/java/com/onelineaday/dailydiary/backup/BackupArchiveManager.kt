@@ -40,6 +40,8 @@ class BackupArchiveManager(
 
         private const val MAX_SINGLE_FILE_BYTES = 2L * 1024L * 1024L * 1024L
 
+        private const val MAX_MANIFEST_BYTES = 5L * 1024L * 1024L
+
         private const val MAX_ZIP_ENTRIES = 100_000
 
         internal fun validateArchivePath(rawPath: String): String {
@@ -281,6 +283,12 @@ class BackupArchiveManager(
 
                 val validated = validateArchive(stagedArchive)
 
+                val usableSpace = context.filesDir.usableSpace
+                val requiredAttachmentBytes = validated.manifest.files.sumOf { it.byteSize }
+                require(usableSpace >= requiredAttachmentBytes + 20L * 1024L * 1024L) {
+                    "Insufficient device storage to restore backup attachments."
+                }
+
                 val restoredPathById = mutableMapOf<String, String>()
 
                 ZipFile(stagedArchive).use { zip ->
@@ -435,6 +443,57 @@ class BackupArchiveManager(
             }
         }
 
+    suspend fun inspectBackup(
+        sourceUri: Uri
+    ): BackupPreviewResult =
+        withContext(Dispatchers.IO) {
+            val session = UUID.randomUUID().toString()
+            val stagingDirectory = File(context.cacheDir, "preview/$session")
+            try {
+                stagingDirectory.mkdirs()
+                val stagedArchive = File(stagingDirectory, "preview.zip")
+                copyUriWithLimit(
+                    sourceUri = sourceUri,
+                    destination = stagedArchive,
+                    maxBytes = MAX_ARCHIVE_BYTES
+                )
+                val validated = validateArchive(stagedArchive)
+                val entries = validated.manifest.entries
+                val minDate = entries.minOfOrNull { it.date }
+                val maxDate = entries.maxOfOrNull { it.date }
+                val totalBytes = validated.manifest.files.sumOf { it.byteSize }
+
+                BackupPreviewResult.Success(
+                    journalCount = validated.manifest.journals.size,
+                    entryCount = entries.size,
+                    minDate = minDate,
+                    maxDate = maxDate,
+                    totalAttachmentBytes = totalBytes
+                )
+            } catch (t: Throwable) {
+                BackupPreviewResult.Failure(
+                    reason = t.message ?: "Failed to inspect backup archive."
+                )
+            } finally {
+                runCatching { stagingDirectory.deleteRecursively() }
+            }
+        }
+
+    suspend fun createSafetySnapshot(): File? =
+        withContext(Dispatchers.IO) {
+            val safetyDir = File(context.filesDir, "safety_backups").apply { mkdirs() }
+            val snapshotFile = File(safetyDir, "safety_backup_before_restore.zip")
+            val exportResult = exportBackup()
+            if (exportResult is BackupExportResult.Success) {
+                runCatching {
+                    exportResult.file.copyTo(snapshotFile, overwrite = true)
+                    snapshotFile
+                }.getOrNull()
+            } else {
+                null
+            }
+        }
+
     private fun validateArchive(archive: File): ValidatedBackup {
         ZipFile(archive).use { zip ->
             val seenNames = hashSetOf<String>()
@@ -489,6 +548,10 @@ class BackupArchiveManager(
             val manifestEntry =
                 zip.getEntry("manifest.json")
                     ?: error("Backup manifest is missing.")
+
+            require(manifestEntry.size in 0..MAX_MANIFEST_BYTES) {
+                "Backup manifest is too large (max 5MB allowed)."
+            }
 
             val json =
                 zip.getInputStream(manifestEntry)
@@ -783,4 +846,18 @@ sealed interface BackupRestoreResult {
     data class Failure(
         val reason: String
     ) : BackupRestoreResult
+}
+
+sealed interface BackupPreviewResult {
+    data class Success(
+        val journalCount: Int,
+        val entryCount: Int,
+        val minDate: String?,
+        val maxDate: String?,
+        val totalAttachmentBytes: Long
+    ) : BackupPreviewResult
+
+    data class Failure(
+        val reason: String
+    ) : BackupPreviewResult
 }

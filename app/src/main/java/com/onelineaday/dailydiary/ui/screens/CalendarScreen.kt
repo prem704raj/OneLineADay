@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +36,8 @@ import java.time.format.DateTimeFormatter
 fun CalendarScreen(
     viewModel: JournalViewModel,
     onNavigateToDetail: (JournalEntry) -> Unit,
-    onNavigateToWrite: (LocalDate) -> Unit
+    onNavigateToWrite: (LocalDate) -> Unit,
+    onNavigateToYearInPixels: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var displayedMonth by remember { mutableStateOf(YearMonth.now()) }
@@ -54,7 +56,7 @@ fun CalendarScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .then(if (!hasTopBanner) Modifier.statusBarsPadding() else Modifier)
+            .statusBarsPadding()
     ) {
         // Header
         Row(
@@ -71,6 +73,13 @@ fun CalendarScreen(
                 fontWeight = FontWeight.Bold
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNavigateToYearInPixels) {
+                    Icon(
+                        imageVector = Icons.Rounded.GridView,
+                        contentDescription = "Year in Pixels",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 TextButton(onClick = { 
                     displayedMonth = YearMonth.now()
                     selectedDate = LocalDate.now()
@@ -78,10 +87,10 @@ fun CalendarScreen(
                     Text(stringResource(R.string.today_button))
                 }
                 IconButton(onClick = { displayedMonth = displayedMonth.minusMonths(1) }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous Month")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.previous_month))
                 }
                 IconButton(onClick = { displayedMonth = displayedMonth.plusMonths(1) }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Month")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.next_month))
                 }
             }
         }
@@ -91,7 +100,11 @@ fun CalendarScreen(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+            val daysOfWeek = remember {
+                java.time.DayOfWeek.values().map {
+                    it.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                }
+            }
             for (day in daysOfWeek) {
                 Text(
                     text = day,
@@ -209,12 +222,18 @@ fun CalendarScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = stringResource(R.string.no_entry_for_date),
+                                text = if (date > today) {
+                                    stringResource(R.string.future_date_not_allowed)
+                                } else {
+                                    stringResource(R.string.no_entry_for_date)
+                                },
                                 style = MaterialTheme.typography.bodyLarge
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { onNavigateToWrite(date) }) {
-                                Text(stringResource(R.string.write_now))
+                            if (date <= today) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(onClick = { onNavigateToWrite(date) }) {
+                                    Text(stringResource(R.string.write_now))
+                                }
                             }
                         }
                     }

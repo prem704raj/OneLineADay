@@ -91,6 +91,8 @@ fun PinEntryScreen(
             listOf(if (onBiometricFallback != null) "BIO" else "", "0", "DEL")
         )
         
+        val isLockedOut = errorMessage?.contains("Try again in") == true
+
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             for (row in pad) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -99,7 +101,7 @@ fun PinEntryScreen(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .clickable(enabled = key.isNotEmpty()) {
+                                .clickable(enabled = key.isNotEmpty() && (!isLockedOut || key == "BIO")) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     when (key) {
                                         "DEL" -> if (enteredDigits.isNotEmpty()) enteredDigits = enteredDigits.dropLast(1)

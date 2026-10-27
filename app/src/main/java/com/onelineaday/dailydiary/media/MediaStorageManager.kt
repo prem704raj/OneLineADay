@@ -39,8 +39,16 @@ class MediaStorageManager(
                     "Only image and video files are supported."
                 }
 
+                val isVideo = mimeType.startsWith("video/")
+                val maxAllowedBytes = if (isVideo) MAX_VIDEO_BYTES else MAX_IMAGE_BYTES
+
+                val usableSpace = context.filesDir.usableSpace
+                if (usableSpace < MIN_FREE_STORAGE_BYTES) {
+                    error("Device storage is low. Please free up space before importing media.")
+                }
+
                 val category =
-                    if (mimeType.startsWith("video/")) {
+                    if (isVideo) {
                         "video"
                     } else {
                         "image"
@@ -67,7 +75,17 @@ class MediaStorageManager(
                 try {
                     input.use { source ->
                         FileOutputStream(destination).use { output ->
-                            source.copyTo(output)
+                            val buffer = ByteArray(8192)
+                            var totalRead = 0L
+                            var bytesRead = source.read(buffer)
+                            while (bytesRead != -1) {
+                                totalRead += bytesRead
+                                if (totalRead > maxAllowedBytes) {
+                                    throw IllegalStateException("File exceeds maximum allowed size of ${maxAllowedBytes / (1024 * 1024)}MB.")
+                                }
+                                output.write(buffer, 0, bytesRead)
+                                bytesRead = source.read(buffer)
+                            }
                             output.fd.sync()
                         }
                     }
@@ -185,6 +203,10 @@ class MediaStorageManager(
         }
 
     companion object {
+        const val MAX_IMAGE_BYTES = 25L * 1024L * 1024L // 25 MB
+        const val MAX_VIDEO_BYTES = 100L * 1024L * 1024L // 100 MB
+        const val MIN_FREE_STORAGE_BYTES = 50L * 1024L * 1024L // 50 MB safety buffer
+
         fun resolveMediaFile(context: Context, pathOrUri: String): File? {
             if (!pathOrUri.startsWith("/")) return null
             val direct = File(pathOrUri)

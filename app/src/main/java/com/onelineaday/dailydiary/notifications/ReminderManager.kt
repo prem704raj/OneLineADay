@@ -172,6 +172,13 @@ class BootReceiver : BroadcastReceiver() {
                         minute = prefs.getInt("reminder_minute", 0)
                     )
                 }
+
+                if (prefs.getBoolean(FlashbackNotificationManager.PREFS_KEY_ENABLED, false)) {
+                    FlashbackNotificationManager(context).scheduleDailyFlashback(
+                        hour = prefs.getInt(FlashbackNotificationManager.PREFS_KEY_HOUR, 9),
+                        minute = prefs.getInt(FlashbackNotificationManager.PREFS_KEY_MINUTE, 0)
+                    )
+                }
             }
         }
     }

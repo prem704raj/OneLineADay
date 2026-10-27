@@ -74,6 +74,11 @@
             android:name=".notifications.ReminderReceiver"
             android:exported="false" />
 
+        <!-- Daily flashback notification receiver -->
+        <receiver
+            android:name=".notifications.FlashbackReceiver"
+            android:exported="false" />
+
         <!--
             System BOOT_COMPLETED receiver.
             Used to restore journal reminders after reboot.

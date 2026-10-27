@@ -26,6 +26,18 @@ class JournalRepository(private val journalDao: JournalDao) {
     
     fun getMoodDistribution(journalId: String = "default"): Flow<List<MoodCount>> = journalDao.getMoodDistribution(journalId)
     
+    fun getStreakFreezes(journalId: String = "default"): Flow<List<StreakFreeze>> =
+        journalDao.getStreakFreezes(journalId)
+
+    suspend fun getStreakFreezesOnce(journalId: String = "default"): List<StreakFreeze> =
+        journalDao.getStreakFreezesOnce(journalId)
+
+    suspend fun insertStreakFreeze(freeze: StreakFreeze) =
+        journalDao.insertStreakFreeze(freeze)
+
+    suspend fun deleteStreakFreeze(date: LocalDate, journalId: String = "default") =
+        journalDao.deleteStreakFreeze(date, journalId)
+    
     fun getEntryByDate(date: LocalDate, journalId: String = "default"): Flow<JournalEntry?> {
         return journalDao.getEntryByDateFlow(date, journalId)
     }

@@ -11,8 +11,8 @@ import androidx.room.migration.Migration
  * Room database for storing journal entries
  */
 @Database(
-    entities = [JournalEntry::class, Journal::class],
-    version = 5,
+    entities = [JournalEntry::class, Journal::class, StreakFreeze::class],
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -20,7 +20,7 @@ abstract class JournalDatabase : RoomDatabase() {
     abstract fun journalDao(): JournalDao
     
     companion object {
-        const val VERSION = 5
+        const val VERSION = 6
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -176,11 +176,31 @@ abstract class JournalDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `streak_freezes` (
+                        `date` TEXT NOT NULL,
+                        `journalId` TEXT NOT NULL DEFAULT 'default',
+                        `reason` TEXT NOT NULL DEFAULT 'AUTOMATIC',
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`date`, `journalId`),
+                        FOREIGN KEY(`journalId`) REFERENCES `journals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE INDEX IF NOT EXISTS `index_streak_freezes_journalId`
+                    ON `streak_freezes`(`journalId`)
+                """.trimIndent())
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
-            MIGRATION_4_5
+            MIGRATION_4_5,
+            MIGRATION_5_6
         )
 
         @Volatile
@@ -241,7 +261,7 @@ class Converters {
     
     @TypeConverter
     fun toLocalDate(dateString: String?): LocalDate? {
-        return runCatching { dateString?.let { LocalDate.parse(it) } }.getOrNull() ?: LocalDate.now()
+        return dateString?.let { LocalDate.parse(it) }
     }
     
     @TypeConverter

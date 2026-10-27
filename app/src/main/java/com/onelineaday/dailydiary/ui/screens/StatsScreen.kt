@@ -26,6 +26,7 @@ import java.time.temporal.ChronoUnit
 fun StatsScreen(
     viewModel: JournalViewModel,
     uiState: JournalUiState,
+    onNavigateToYearInPixels: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -167,6 +168,12 @@ fun StatsScreen(
                     journeyDays = journeyDays
                 )
                 
+                // Year In Review & Year In Pixels
+                YearInReviewCard(
+                    entries = uiState.entries,
+                    onNavigateToYearInPixels = onNavigateToYearInPixels
+                )
+                
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
@@ -288,6 +295,7 @@ fun MilestoneItem(
 @Composable
 fun YearInReviewCard(
     entries: List<com.onelineaday.dailydiary.data.JournalEntry>,
+    onNavigateToYearInPixels: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentYear = remember { java.time.LocalDate.now().year }
@@ -372,6 +380,25 @@ fun YearInReviewCard(
                     label = stringResource(R.string.best_streak),
                     value = stringResource(R.string.streak_days, longestStreak),
                     modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = onNavigateToYearInPixels,
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.GridView,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "View Year in Pixels",
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                 )
             }
         }

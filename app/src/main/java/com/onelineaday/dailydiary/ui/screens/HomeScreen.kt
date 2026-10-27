@@ -1,12 +1,15 @@
 package com.onelineaday.dailydiary.ui.screens
 
+import android.app.Activity
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -36,10 +39,13 @@ import com.onelineaday.dailydiary.ui.components.AudioAttachment
 import com.onelineaday.dailydiary.ui.theme.*
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
 import com.onelineaday.dailydiary.ads.BannerAdView
-import android.app.Activity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.onelineaday.dailydiary.memory.FlashbackMemory
+import com.onelineaday.dailydiary.memory.ui.YearBadge
+import com.onelineaday.dailydiary.memory.ui.LeapDayBadge
+import com.onelineaday.dailydiary.prompts.ui.DailySparkCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +53,8 @@ fun HomeScreen(
     viewModel: JournalViewModel,
     uiState: com.onelineaday.dailydiary.viewmodel.JournalUiState,
     modifier: Modifier = Modifier,
-    onNavigateToDetail: (JournalEntry) -> Unit = {}
+    onNavigateToDetail: (JournalEntry) -> Unit = {},
+    onNavigateToOnThisDay: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -102,19 +109,10 @@ fun HomeScreen(
     val today = LocalDate.now()
     val dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMMM d")
     
-    val throwback = remember(uiState.entries, today) {
-        val throwbackEntry = uiState.entries.firstOrNull { 
-            it.date.monthValue == today.monthValue && 
-            it.date.dayOfMonth == today.dayOfMonth && 
-            it.date.year < today.year 
-        }
-        if (throwbackEntry != null) {
-            val yearsAgo = today.year - throwbackEntry.date.year
-            Pair(yearsAgo, throwbackEntry)
-        } else {
-            null
-        }
+    val todayFlashbacksFlow = remember(today, viewModel) {
+        viewModel.getFlashbacksFlow(today)
     }
+    val todayFlashbacks by todayFlashbacksFlow.collectAsState(initial = emptyList())
     
     // Determine whether to show the write form or the "captured" card
     val showWriteForm = uiState.todayEntry == null || isEditing
@@ -200,21 +198,14 @@ fun HomeScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Throwback Card
-            if (throwback != null) {
-                val (yearsAgo, entry) = throwback
-                Text(
-                    text = stringResource(R.string.throwback_title, yearsAgo),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
+            // Flashback / On This Day Preview Card
+            if (todayFlashbacks.isNotEmpty()) {
+                FlashbackHomePreviewCard(
+                    memories = todayFlashbacks,
+                    onViewAllClick = onNavigateToOnThisDay,
+                    onDetailClick = { onNavigateToDetail(it) }
                 )
-                EntryCard(
-                    entry = entry,
-                    onClick = { onNavigateToDetail(entry) }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // Quick Stats Row
@@ -237,12 +228,22 @@ fun HomeScreen(
                         Text(text = "🔥", style = MaterialTheme.typography.titleLarge)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text(
-                                text = "${uiState.currentStreak}",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = SunsetOrange
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${uiState.currentStreak}",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SunsetOrange
+                                )
+                                if (uiState.availableFreezes > 0) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "❄️${uiState.availableFreezes}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AccentTeal
+                                    )
+                                }
+                            }
                             Text(
                                 text = stringResource(R.string.home_day_streak),
                                 style = MaterialTheme.typography.labelSmall,
@@ -283,7 +284,34 @@ fun HomeScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Daily Spark Prompt Card
+            uiState.dailyPrompt?.let { prompt ->
+                DailySparkCard(
+                    prompt = prompt,
+                    isAnswered = uiState.isPromptAnswered,
+                    selectedCategory = uiState.promptCategoryFilter,
+                    onAnswerPrompt = { p ->
+                        val promptPrefix = "\"${p.text}\""
+                        entryText = if (entryText.isBlank()) {
+                            "$promptPrefix\n"
+                        } else {
+                            "$promptPrefix\n$entryText"
+                        }
+                        scope.launch {
+                            focusRequester.requestFocus()
+                        }
+                    },
+                    onShufflePrompt = {
+                        viewModel.shuffleDailyPrompt()
+                    },
+                    onSelectCategory = { category ->
+                        viewModel.setPromptCategory(category)
+                    }
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
             
             if (showWriteForm) {
                 // ── Write / Edit Form ──
@@ -328,13 +356,41 @@ fun HomeScreen(
                             placeholder = stringResource(R.string.write_your_line)
                         )
                         
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.word_char_count, entryText.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }, entryText.length),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.align(Alignment.End)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (entryText.trim().split("\\s+".toRegex()).count { it.isNotBlank() } >= 10) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val distilled = viewModel.distillText(entryText)
+                                        if (distilled.isNotBlank()) {
+                                            entryText = distilled
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text(
+                                        text = "✨ Distill to 1 Line",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(1.dp))
+                            }
+
+                            Text(
+                                text = stringResource(R.string.word_char_count, entryText.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }, entryText.length),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
                         
                         Spacer(modifier = Modifier.height(20.dp))
                         
@@ -672,4 +728,70 @@ fun android.content.Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is android.content.ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+@Composable
+fun FlashbackHomePreviewCard(
+    memories: List<FlashbackMemory>,
+    onViewAllClick: () -> Unit,
+    onDetailClick: (JournalEntry) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val topMemory = memories.firstOrNull() ?: return
+    val entry = topMemory.entry
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            )
+            .clickable(onClick = onViewAllClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    YearBadge(yearOffset = topMemory.yearOffset, year = entry.date.year)
+                    if (topMemory.isLeapDayObservation) {
+                        LeapDayBadge(isObserved = true, originalYear = entry.date.year)
+                    }
+                }
+
+                TextButton(onClick = onViewAllClick) {
+                    Text(
+                        text = if (memories.size > 1) "View All (${memories.size}) →" else "View Memory →",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = entry.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }

@@ -24,8 +24,8 @@ android {
 
         // Previous repository versionCode was 6.
         // Every Play Store update must use a higher versionCode.
-        versionCode = 7
-        versionName = "4.3"
+        versionCode = 8
+        versionName = "4.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

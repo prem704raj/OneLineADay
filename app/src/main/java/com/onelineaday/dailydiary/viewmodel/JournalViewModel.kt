@@ -21,6 +21,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.onelineaday.dailydiary.memory.FlashbackMemory
+import com.onelineaday.dailydiary.memory.FlashbackRepository
+import com.onelineaday.dailydiary.prompts.DailySparkPrompt
+import com.onelineaday.dailydiary.prompts.PromptCategory
+import com.onelineaday.dailydiary.prompts.PromptPreferences
+import com.onelineaday.dailydiary.prompts.PromptRotationEngine
 
 data class JournalUiState(
     val entries: List<JournalEntry> = emptyList(),
@@ -37,15 +43,27 @@ data class JournalUiState(
     val entrySaved: Boolean = false,  // Flag to trigger form reset
     val activeJournalId: String = "default",
     val journals: List<Journal> = emptyList(),
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val dailyPrompt: DailySparkPrompt? = null,
+    val isPromptAnswered: Boolean = false,
+    val promptCategoryFilter: PromptCategory? = null,
+    val promptShuffleOffset: Int = 0,
+    val streakFreezes: List<StreakFreeze> = emptyList(),
+    val availableFreezes: Int = 0,
+    val restDays: Set<java.time.DayOfWeek> = emptySet(),
+    val isAiOptIn: Boolean = false
 )
 
 class JournalViewModel(application: Application) : AndroidViewModel(application) {
     
     private val database = JournalDatabase.getDatabase(application)
     private val repository = JournalRepository(database.journalDao())
+    val streakManager = StreakManager(repository, application)
+    val aiKeyManager = com.onelineaday.dailydiary.ai.privacy.AiKeyManager(application)
     private val mediaStorage = MediaStorageManager(application)
     private val backupManager = BackupArchiveManager(application, database)
+    private val flashbackRepository = FlashbackRepository(database.journalDao())
+    private val promptPreferences = PromptPreferences(application)
     
     private val prefs = application.getSharedPreferences("settings", Context.MODE_PRIVATE)
     
@@ -137,18 +155,54 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     private fun loadData(journalId: String) {
         dataLoadJob?.cancel()
         dataLoadJob = viewModelScope.launch {
+            // Check & auto-apply streak freeze if yesterday was missed and inventory available
+            launch(Dispatchers.IO) {
+                runCatching {
+                    streakManager.autoApplyFreezeIfNeeded(LocalDate.now(), journalId)
+                }
+            }
+
+            // Observe streak freezes
+            launch {
+                repository.getStreakFreezes(journalId).collect { freezes ->
+                    val available = streakManager.getAvailableFreezesCount(journalId)
+                    val restDays = streakManager.getRestDays()
+                    val entries = _uiState.value.entries
+                    val frozenDates = freezes.map { it.date }.toSet()
+                    val restDates = (0..365).map { LocalDate.now().minusDays(it.toLong()) }
+                        .filter { it.dayOfWeek in restDays }.toSet()
+                    val streak = repository.calculateCurrentStreak(entries, LocalDate.now(), frozenDates + restDates)
+
+                    _uiState.update {
+                        it.copy(
+                            streakFreezes = freezes,
+                            availableFreezes = available,
+                            restDays = restDays,
+                            currentStreak = streak,
+                            isAiOptIn = aiKeyManager.isCloudAiOptIn()
+                        )
+                    }
+                }
+            }
+
             // Load all entries
             launch {
                 repository.getAllEntries(journalId).collect { entries ->
-                    val streak = repository.calculateStreak(entries)
+                    val frozenDates = _uiState.value.streakFreezes.map { it.date }.toSet()
+                    val restDays = streakManager.getRestDays()
+                    val restDates = (0..365).map { LocalDate.now().minusDays(it.toLong()) }
+                        .filter { it.dayOfWeek in restDays }.toSet()
+                    val streak = repository.calculateCurrentStreak(entries, LocalDate.now(), frozenDates + restDates)
                     val longestStreak = repository.calculateLongestStreak(entries)
-                    
+                    val available = streakManager.getAvailableFreezesCount(journalId)
+
                     _uiState.update { 
                         it.copy(
                             entries = entries,
                             currentStreak = streak,
                             longestStreak = longestStreak,
                             totalEntries = entries.size,
+                            availableFreezes = available,
                             isLoading = false
                         )
                     }
@@ -162,6 +216,15 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+    }
+
+    fun distillText(rawText: String): String {
+        return com.onelineaday.dailydiary.ai.distill.LocalTextDistillationEngine.distillToSingleLine(rawText)
+    }
+
+    fun setRestDays(days: Set<java.time.DayOfWeek>) {
+        streakManager.setRestDays(days)
+        loadData(_activeJournalId.value)
     }
     
     fun saveEntry(
@@ -240,10 +303,14 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
 
                     repository.saveEntry(entry)
                     com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
+                    _uiState.value.dailyPrompt?.let { prompt ->
+                        promptPreferences.markPromptAnswered(date, prompt.id)
+                    }
                     _uiState.update {
                         it.copy(
                             message = getApplication<Application>().getString(R.string.entry_saved),
-                            entrySaved = true
+                            entrySaved = true,
+                            isPromptAnswered = true
                         )
                     }
 
@@ -338,6 +405,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun setSelectedDate(date: LocalDate) {
         _selectedDate.value = date
         _uiState.update { it.copy(selectedDate = date) }
+        updateDailyPromptForDate(date)
         
         selectedDateJob?.cancel()
         val journalId = _activeJournalId.value
@@ -347,6 +415,76 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(todayEntry = entry) }
             }
         }
+    }
+
+    // --- On This Day / Flashback Methods ---
+
+    fun getFlashbacksFlow(
+        date: LocalDate = _uiState.value.selectedDate,
+        historyYears: Int = 5,
+        chronologicalAscending: Boolean = false
+    ): Flow<List<FlashbackMemory>> {
+        return flashbackRepository.getFlashbacksFlow(
+            date = date,
+            journalId = _uiState.value.activeJournalId,
+            historyYears = historyYears,
+            chronologicalAscending = chronologicalAscending
+        )
+    }
+
+    suspend fun getFlashbacksOnce(
+        date: LocalDate = _uiState.value.selectedDate,
+        historyYears: Int = 5,
+        chronologicalAscending: Boolean = false
+    ): List<FlashbackMemory> {
+        return flashbackRepository.getFlashbacksOnce(
+            date = date,
+            journalId = _uiState.value.activeJournalId,
+            historyYears = historyYears,
+            chronologicalAscending = chronologicalAscending
+        )
+    }
+
+    // --- Daily Spark Prompts Methods ---
+
+    fun updateDailyPromptForDate(date: LocalDate = _uiState.value.selectedDate) {
+        val categoryFilter = promptPreferences.getSelectedCategoryFilter()
+        val shuffleOffset = promptPreferences.getShuffleOffset(date)
+
+        val prompt = if (categoryFilter != null) {
+            PromptRotationEngine.promptForDateAndCategory(date, categoryFilter, shuffleOffset)
+        } else {
+            PromptRotationEngine.promptForDate(date, shuffleOffset)
+        }
+
+        val isAnswered = promptPreferences.isDatePromptAnswered(date) ||
+                promptPreferences.isPromptAnswered(prompt.id)
+
+        _uiState.update {
+            it.copy(
+                dailyPrompt = prompt,
+                isPromptAnswered = isAnswered,
+                promptCategoryFilter = categoryFilter,
+                promptShuffleOffset = shuffleOffset
+            )
+        }
+    }
+
+    fun shuffleDailyPrompt() {
+        val date = _uiState.value.selectedDate
+        promptPreferences.incrementShuffleOffset(date)
+        updateDailyPromptForDate(date)
+    }
+
+    fun setPromptCategory(category: PromptCategory?) {
+        promptPreferences.setSelectedCategoryFilter(category)
+        val date = _uiState.value.selectedDate
+        updateDailyPromptForDate(date)
+    }
+
+    fun markPromptAnswered(promptId: String, date: LocalDate = _uiState.value.selectedDate) {
+        promptPreferences.markPromptAnswered(date, promptId)
+        updateDailyPromptForDate(date)
     }
     
     fun search(query: String) {

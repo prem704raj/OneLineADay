@@ -48,6 +48,9 @@ Thumbs.db
 *.jks
 *.keystore
 
+# Internal agent teamwork artifacts
+.agents/
+
 # Temporary files
 *.tmp
 *.swp
