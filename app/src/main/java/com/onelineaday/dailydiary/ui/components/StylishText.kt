@@ -27,7 +27,8 @@ fun StylishTextInput(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String = "Write your line for today...",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    textFieldModifier: Modifier = Modifier
 ) {
     // Animated gradient offset for shimmering effect
     val infiniteTransition = rememberInfiniteTransition(label = "gradient")
@@ -104,7 +105,7 @@ fun StylishTextInput(
             cursorBrush = Brush.verticalGradient(
                 colors = listOf(GradientStart, GradientEnd)
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().then(textFieldModifier)
         )
     }
 }

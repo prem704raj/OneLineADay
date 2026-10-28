@@ -225,7 +225,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "🔥", style = MaterialTheme.typography.titleLarge)
+                        Text(text = "ðŸ”¥", style = MaterialTheme.typography.titleLarge)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -238,7 +238,7 @@ fun HomeScreen(
                                 if (uiState.availableFreezes > 0) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "❄️${uiState.availableFreezes}",
+                                        text = "â„ï¸${uiState.availableFreezes}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AccentTeal
                                     )
@@ -265,7 +265,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "📝", style = MaterialTheme.typography.titleLarge)
+                        Text(text = "ðŸ“", style = MaterialTheme.typography.titleLarge)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
@@ -300,7 +300,11 @@ fun HomeScreen(
                             "$promptPrefix\n$entryText"
                         }
                         scope.launch {
-                            focusRequester.requestFocus()
+                            try {
+                                focusRequester.requestFocus()
+                            } catch (_: IllegalStateException) {
+                                // FocusRequester not yet attached (write form may not be visible yet)
+                            }
                         }
                     },
                     onShufflePrompt = {
@@ -314,7 +318,7 @@ fun HomeScreen(
             }
             
             if (showWriteForm) {
-                // ── Write / Edit Form ──
+                // â”€â”€ Write / Edit Form â”€â”€
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -353,7 +357,8 @@ fun HomeScreen(
                         StylishTextInput(
                             value = entryText,
                             onValueChange = { entryText = it },
-                            placeholder = stringResource(R.string.write_your_line)
+                            placeholder = stringResource(R.string.write_your_line),
+                            textFieldModifier = Modifier.focusRequester(focusRequester)
                         )
                         
                         Row(
@@ -376,7 +381,7 @@ fun HomeScreen(
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Text(
-                                        text = "✨ Distill to 1 Line",
+                                        text = "âœ¨ Distill to 1 Line",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -514,7 +519,7 @@ fun HomeScreen(
                     }
                 }
             } else {
-                // ── Today's Memory Captured Card ──
+                // â”€â”€ Today's Memory Captured Card â”€â”€
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -534,7 +539,7 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "✅",
+                            text = "âœ…",
                             style = MaterialTheme.typography.displaySmall
                         )
                         
@@ -700,7 +705,7 @@ fun EmptyStateMessage() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "🌟",
+            text = "ðŸŒŸ",
             style = MaterialTheme.typography.displayLarge
         )
         
@@ -775,7 +780,7 @@ fun FlashbackHomePreviewCard(
 
                 TextButton(onClick = onViewAllClick) {
                     Text(
-                        text = if (memories.size > 1) "View All (${memories.size}) →" else "View Memory →",
+                        text = if (memories.size > 1) "View All (${memories.size}) â†’" else "View Memory â†’",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
