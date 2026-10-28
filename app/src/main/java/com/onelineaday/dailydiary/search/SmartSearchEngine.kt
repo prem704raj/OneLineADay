@@ -78,7 +78,7 @@ object SmartSearchEngine {
             // 4. Month filter
             if (detectedMonth != null && entry.date.month == detectedMonth) {
                 score += 10.0
-                reasons.add("Recorded in ${detectedMonth.name.lowercase(Locale.ROOT).capitalize(Locale.ROOT)}")
+                reasons.add("Recorded in ${detectedMonth.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) }}")
             }
 
             // 5. Media filter

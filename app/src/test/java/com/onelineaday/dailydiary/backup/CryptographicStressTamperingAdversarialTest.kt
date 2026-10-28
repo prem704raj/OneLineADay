@@ -477,7 +477,7 @@ class CryptographicStressTamperingAdversarialTest {
         val payload = "Data to verify temp file cleanup".toByteArray()
         val archive = generateEncryptedArchive("Pass2026!".toCharArray(), payload)
 
-        val javaTmpDir = File(System.getProperty("java.io.tmpdir"))
+        val javaTmpDir = File(System.getProperty("java.io.tmpdir") ?: ".")
         fun countStageFiles() = javaTmpDir.listFiles(FilenameFilter { _, name ->
             name?.startsWith("olad_restore_stage_") == true
         })?.size ?: 0

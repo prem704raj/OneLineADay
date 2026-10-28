@@ -151,6 +151,25 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             setActiveJournal(journal.id)
         }
     }
+
+    val duoJournalManager by lazy {
+        com.onelineaday.dailydiary.duo.DuoJournalManager(repository, getApplication())
+    }
+
+    fun createDuoJournal(partnerName: String, pin: String) {
+        viewModelScope.launch {
+            val journal = duoJournalManager.createDuoJournal(partnerName, pin)
+            setActiveJournal(journal.id)
+        }
+    }
+
+    fun verifyDuoPin(inputPin: String): Boolean {
+        return duoJournalManager.verifyDuoPin(inputPin)
+    }
+
+    fun isDuoJournal(journalId: String): Boolean {
+        return journalId.startsWith("duo_") || duoJournalManager.getDuoJournalId() == journalId
+    }
     
     private fun loadData(journalId: String) {
         dataLoadJob?.cancel()

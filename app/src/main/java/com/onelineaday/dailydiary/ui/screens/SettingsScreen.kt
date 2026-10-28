@@ -1056,6 +1056,15 @@ fun SettingsScreen(
                     },
                     onCreate = { name ->
                         viewModel.createJournal(name)
+                    },
+                    isDuoJournal = { journalId ->
+                        viewModel.isDuoJournal(journalId)
+                    },
+                    onVerifyDuoPin = { pin ->
+                        viewModel.verifyDuoPin(pin)
+                    },
+                    onCreateDuo = { partnerName, pin ->
+                        viewModel.createDuoJournal(partnerName, pin)
                     }
                 )
                 
