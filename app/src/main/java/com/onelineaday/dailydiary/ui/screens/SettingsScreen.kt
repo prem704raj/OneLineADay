@@ -96,8 +96,6 @@ fun SettingsScreen(
     var hasPin by remember { mutableStateOf(com.onelineaday.dailydiary.security.AppLockManager.hasPin(context)) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var showPremiumDialog by remember { mutableStateOf(false) }
-    val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
 
     val languages = listOf(
         "en" to "English",
@@ -328,8 +326,8 @@ fun SettingsScreen(
                             R.string.restore_backup_confirm_message,
                             preview.entryCount,
                             preview.journalCount,
-                            preview.minDate ?: "—",
-                            preview.maxDate ?: "—"
+                            preview.minDate ?: "\u2014",
+                            preview.maxDate ?: "\u2014"
                         )
                     )
                 }
@@ -640,117 +638,6 @@ fun SettingsScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Premium Status / Upgrade Banner
-                if (!isPremium) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showPremiumDialog = true },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.Transparent
-                        )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.primaryContainer,
-                                            MaterialTheme.colorScheme.tertiaryContainer
-                                        )
-                                    )
-                                )
-                                .padding(18.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.WorkspacePremium,
-                                        contentDescription = stringResource(R.string.premium_go_premium),
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.upgrade_to_premium),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.upgrade_to_premium_subtitle),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                    contentDescription = stringResource(R.string.open),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
-                } else {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFFA500)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.CheckCircle,
-                                    contentDescription = stringResource(R.string.premium_active),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.premium_active),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = stringResource(R.string.premium_active_subtitle),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
                 
                 // Appearance & Security Section
                 SettingsSection(title = stringResource(R.string.settings_appearance)) {
@@ -825,7 +712,7 @@ fun SettingsScreen(
                     // Theme Selector
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                         Text(
-                            text = if (isPremium) "App Theme" else "App Theme (Premium)",
+                            text = "App Theme",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
@@ -836,7 +723,6 @@ fun SettingsScreen(
                         ) {
                             items(com.onelineaday.dailydiary.ui.theme.AppTheme.values()) { theme ->
                                 val isSelected = currentAppTheme == theme
-                                val isThemeLocked = !isPremium && theme != com.onelineaday.dailydiary.ui.theme.AppTheme.DEFAULT
                                 Box(
                                     modifier = Modifier
                                         .size(48.dp)
@@ -850,11 +736,7 @@ fun SettingsScreen(
                                             }
                                         )
                                         .clickable { 
-                                            if (!isThemeLocked) {
-                                                onThemeChange(theme)
-                                            } else {
-                                                showPremiumDialog = true
-                                            }
+                                            onThemeChange(theme)
                                         }
                                         .border(
                                             width = if (isSelected) 3.dp else 0.dp,
@@ -868,13 +750,6 @@ fun SettingsScreen(
                                             imageVector = Icons.Rounded.Check,
                                             contentDescription = "Selected",
                                             tint = androidx.compose.ui.graphics.Color.White
-                                        )
-                                    } else if (isThemeLocked) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Lock,
-                                            contentDescription = "Locked",
-                                            tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -1077,12 +952,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.export_pdf),
                         subtitle = stringResource(R.string.settings_export_pdf_subtitle),
                         onClick = {
-                            val isPremium = com.onelineaday.dailydiary.PremiumManager.isPremium.value
-                            if (isPremium) {
-                                exportPdf(scope, context, uiState) { isExporting = it }
-                            } else {
-                                showAdDialog = true
-                            }
+                            showAdDialog = true
                         },
                         isLoading = isExporting
                     )
@@ -1469,22 +1339,6 @@ fun SettingsScreen(
                         )
                     }
                     
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-                    
-                    SettingsItem(
-                        icon = Icons.Rounded.ShoppingCart,
-                        title = stringResource(R.string.settings_restore_purchases),
-                        subtitle = stringResource(R.string.settings_restore_purchases_subtitle),
-                        onClick = {
-                            val activity = context as? Activity
-                            if (activity != null) {
-                                com.onelineaday.dailydiary.billing.BillingManager.restorePurchases(activity)
-                            }
-                        }
-                    )
                 }
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -1503,9 +1357,11 @@ fun SettingsScreen(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "📝",
-                            style = MaterialTheme.typography.displayMedium
+                        Icon(
+                            imageVector = Icons.Rounded.Book,
+                            contentDescription = stringResource(R.string.app_name),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(56.dp)
                         )
                         
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1765,7 +1621,7 @@ fun SettingsScreen(
                                 }
                             )
                         } else {
-                            // Not an Activity context — export directly
+                            // Not an Activity context - export directly
                             exportPdf(scope, context, uiState) { isExporting = it }
                         }
                     }
@@ -1883,11 +1739,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showPremiumDialog) {
-        com.onelineaday.dailydiary.ui.components.PremiumDialog(
-            onDismiss = { showPremiumDialog = false }
-        )
-    }
 
     if (pinSetupState != null) {
         androidx.compose.ui.window.Dialog(

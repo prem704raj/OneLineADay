@@ -139,7 +139,6 @@ fun MainNavigation(
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
     val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
     
     var viewingDetailEntry by remember { mutableStateOf<JournalEntry?>(null) }
@@ -198,7 +197,7 @@ fun MainNavigation(
         topBar = {},
         bottomBar = {
             Column {
-                if (!isPremium && canRequestAds && currentDestination?.route != "privacy_policy") {
+                if (canRequestAds && currentDestination?.route != "privacy_policy") {
                     com.onelineaday.dailydiary.ads.BannerAdView()
                 }
                 NavigationBar(

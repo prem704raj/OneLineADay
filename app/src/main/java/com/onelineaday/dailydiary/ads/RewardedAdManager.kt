@@ -25,7 +25,6 @@ object RewardedAdManager {
 
     fun loadAd(context: Context) {
         if (
-            PremiumManager.isPremium.value ||
             !AdsConsentManager.canRequestAds.value ||
             rewardedAd != null ||
             loading
@@ -55,8 +54,7 @@ object RewardedAdManager {
     }
 
     fun isAdReady(): Boolean =
-        !PremiumManager.isPremium.value &&
-            AdsConsentManager.canRequestAds.value &&
+        AdsConsentManager.canRequestAds.value &&
             rewardedAd != null
 
     fun showAd(
@@ -65,11 +63,6 @@ object RewardedAdManager {
         onAdDismissed: () -> Unit,
         onAdNotAvailable: () -> Unit
     ) {
-        if (PremiumManager.isPremium.value) {
-            onAdNotAvailable()
-            return
-        }
-
         if (!AdsConsentManager.canRequestAds.value) {
             /*
              * Export must not be blocked because consent prevents ads.

@@ -13,7 +13,6 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.onelineaday.dailydiary.BuildConfig
-import com.onelineaday.dailydiary.PremiumManager
 
 @Composable
 fun BannerAdView(
@@ -23,10 +22,9 @@ fun BannerAdView(
     else 
         "ca-app-pub-8204679574020840/5829744461"  // Production
 ) {
-    val premium by PremiumManager.isPremium.collectAsState()
     val canRequestAds by AdsConsentManager.canRequestAds.collectAsState()
 
-    if (premium || !canRequestAds) {
+    if (!canRequestAds) {
         return
     }
 

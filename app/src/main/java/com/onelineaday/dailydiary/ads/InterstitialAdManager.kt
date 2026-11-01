@@ -40,7 +40,6 @@ object InterstitialAdManager {
      */
     fun loadAd(context: Context) {
         if (
-            com.onelineaday.dailydiary.PremiumManager.isPremium.value ||
             !AdsConsentManager.canRequestAds.value ||
             interstitialAd != null ||
             isLoading
@@ -77,7 +76,6 @@ object InterstitialAdManager {
      */
     fun onEntrySaved(activity: Activity, onAdDismissed: () -> Unit = {}) {
         if (
-            com.onelineaday.dailydiary.PremiumManager.isPremium.value ||
             !AdsConsentManager.canRequestAds.value
         ) {
             onAdDismissed()
@@ -95,8 +93,7 @@ object InterstitialAdManager {
     }
 
     fun isAdReady(): Boolean =
-        !com.onelineaday.dailydiary.PremiumManager.isPremium.value &&
-            AdsConsentManager.canRequestAds.value &&
+        AdsConsentManager.canRequestAds.value &&
             interstitialAd != null &&
             !isShowing
 

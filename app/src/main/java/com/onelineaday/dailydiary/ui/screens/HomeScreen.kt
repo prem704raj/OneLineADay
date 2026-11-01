@@ -34,7 +34,6 @@ import com.onelineaday.dailydiary.data.Mood
 import com.onelineaday.dailydiary.data.JournalEntry
 import com.onelineaday.dailydiary.ui.components.*
 import com.onelineaday.dailydiary.ui.components.PhotoAttachment
-import com.onelineaday.dailydiary.ui.components.PremiumDialog
 import com.onelineaday.dailydiary.ui.components.AudioAttachment
 import com.onelineaday.dailydiary.ui.theme.*
 import com.onelineaday.dailydiary.viewmodel.JournalViewModel
@@ -96,8 +95,7 @@ fun HomeScreen(
     val focusRequester = remember { FocusRequester() }
     val haptic = LocalHapticFeedback.current
     
-    var showPremiumDialog by remember { mutableStateOf(false) }
-    
+
     // When entry is saved, clear the form and exit editing mode
     LaunchedEffect(uiState.entrySaved) {
         if (uiState.entrySaved) {
@@ -224,23 +222,6 @@ fun HomeScreen(
                         )
                     }
                 }
-                
-                val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
-                if (!isPremium) {
-                    IconButton(
-                        onClick = { showPremiumDialog = true },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.WorkspacePremium,
-                            contentDescription = stringResource(R.string.premium_go_premium),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -272,7 +253,12 @@ fun HomeScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "ðŸ”¥", style = MaterialTheme.typography.titleLarge)
+                        Icon(
+                            imageVector = Icons.Rounded.Whatshot,
+                            contentDescription = "Streak",
+                            tint = SunsetOrange,
+                            modifier = Modifier.size(32.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -285,7 +271,7 @@ fun HomeScreen(
                                 if (uiState.availableFreezes > 0) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "â„ï¸${uiState.availableFreezes}",
+                                        text = "${uiState.availableFreezes} freeze",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AccentTeal
                                     )
@@ -312,7 +298,12 @@ fun HomeScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "ðŸ“", style = MaterialTheme.typography.titleLarge)
+                        Icon(
+                            imageVector = Icons.Rounded.Book,
+                            contentDescription = "Memories",
+                            tint = AccentTeal,
+                            modifier = Modifier.size(32.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
@@ -365,7 +356,7 @@ fun HomeScreen(
             }
             
             if (showWriteForm) {
-                // â”€â”€ Write / Edit Form â”€â”€
+                // Write / Edit Form
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -427,8 +418,14 @@ fun HomeScreen(
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "âœ¨ Distill to 1 Line",
+                                        text = "Distill to 1 Line",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -566,7 +563,7 @@ fun HomeScreen(
                     }
                 }
             } else {
-                // â”€â”€ Today's Memory Captured Card â”€â”€
+                // Today's Memory Captured Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -585,9 +582,11 @@ fun HomeScreen(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "âœ…",
-                            style = MaterialTheme.typography.displaySmall
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = "Today Captured",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
                         )
                         
                         Spacer(modifier = Modifier.height(12.dp))
@@ -699,12 +698,7 @@ fun HomeScreen(
         }
     }
     
-    if (showPremiumDialog) {
-        PremiumDialog(
-            onDismiss = { showPremiumDialog = false }
-        )
-    }
-    
+
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
             selectableDates = object : SelectableDates {
@@ -751,9 +745,11 @@ fun EmptyStateMessage() {
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "ðŸŒŸ",
-            style = MaterialTheme.typography.displayLarge
+        Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = "Start Your Journey",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(56.dp)
         )
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -827,7 +823,7 @@ fun FlashbackHomePreviewCard(
 
                 TextButton(onClick = onViewAllClick) {
                     Text(
-                        text = if (memories.size > 1) "View All (${memories.size}) â†’" else "View Memory â†’",
+                        text = if (memories.size > 1) "View All (${memories.size}) ->" else "View Memory ->",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

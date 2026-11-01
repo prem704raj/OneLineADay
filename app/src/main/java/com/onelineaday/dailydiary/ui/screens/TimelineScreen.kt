@@ -305,9 +305,11 @@ fun TimelineScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(32.dp)
                         ) {
-                            Text(
-                                text = if (searchQuery.isNotEmpty()) "🔍" else "📚",
-                                style = MaterialTheme.typography.displayLarge
+                            Icon(
+                                imageVector = if (searchQuery.isNotEmpty()) Icons.Rounded.Search else Icons.Rounded.Book,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(56.dp)
                             )
                             
                             Spacer(modifier = Modifier.height(24.dp))
@@ -360,9 +362,8 @@ fun TimelineScreen(
                             )
 
                             if ((index + 1) % 2 == 0) {
-                                val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
                                 val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
-                                if (!isPremium && canRequestAds) {
+                                if (canRequestAds) {
                                     BannerAdView(
                                         modifier = Modifier
                                             .fillMaxWidth()

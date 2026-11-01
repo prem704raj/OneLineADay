@@ -48,9 +48,8 @@ fun CalendarScreen(
     }
 
     val today = LocalDate.now()
-    val isPremium by com.onelineaday.dailydiary.PremiumManager.isPremium.collectAsState()
     val canRequestAds by com.onelineaday.dailydiary.ads.AdsConsentManager.canRequestAds.collectAsState()
-    val hasTopBanner = !isPremium && canRequestAds
+    val hasTopBanner = canRequestAds
 
     Column(
         modifier = Modifier
