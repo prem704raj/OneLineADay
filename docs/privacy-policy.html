@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Privacy Policy for One Line A Day - Daily Diary & Gratitude Journal.">
+    <title>Privacy Policy - One Line A Day</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 32px 20px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.7;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+
+        main {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #0f172a;
+            font-size: 2rem;
+        }
+
+        h2 {
+            margin-top: 36px;
+            color: #1e293b;
+            font-size: 1.35rem;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 8px;
+        }
+
+        .updated {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-bottom: 24px;
+        }
+
+        .notice {
+            padding: 20px;
+            border-radius: 12px;
+            background: #f1f5f9;
+            border-left: 4px solid #3b82f6;
+            margin: 24px 0;
+            color: #334155;
+        }
+
+        ul {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        a:hover {
+            color: #1d4ed8;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 16px 12px;
+            }
+
+            main {
+                padding: 24px 18px;
+                border-radius: 14px;
+            }
+
+            h1 {
+                font-size: 1.6rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<main>
+
+    <h1>Privacy Policy</h1>
+    <p><strong>One Line A Day: Daily Diary & Journal</strong></p>
+    <p class="updated">Last updated: November 2, 2026</p>
+
+    <div class="notice">
+        <strong>Privacy Commitment:</strong>
+        One Line A Day is built on a <strong>local-first privacy architecture</strong>. 
+        Your personal thoughts, journal entries, mood records, photos, and voice notes are stored exclusively on your device. We do not operate external account databases or synchronize your personal journal content to private cloud servers.
+    </div>
+
+    <h2>1. Overview</h2>
+    <p>
+        One Line A Day is committed to protecting your privacy. This policy explains what information the application accesses, how it is handled, and your rights concerning your data under Google Play Developer policies, the General Data Protection Regulation (GDPR), and applicable privacy laws.
+    </p>
+
+    <h2>2. Data Stored Locally on Your Device</h2>
+    <p>
+        All journaling content is stored in Android's application-private internal storage using SQLite and Android Jetpack Room:
+    </p>
+    <ul>
+        <li><strong>Journal Entries & Moods:</strong> Your daily text lines, dates, selected mood ratings, tags, and habit streak metadata.</li>
+        <li><strong>Media Attachments:</strong> Photos, images, or videos attached to your entries via Android's privacy-preserving Photo Picker.</li>
+        <li><strong>Audio Recordings:</strong> Voice notes recorded through your device's microphone are processed locally and saved in app-private storage.</li>
+    </ul>
+    <p>
+        Your journal content is private to your device. We never inspect, read, sell, or monetize your personal journal entries.
+    </p>
+
+    <h2>3. Advertising & Third-Party SDKs</h2>
+    <p>
+        One Line A Day is a 100% free application supported by advertising through <strong>Google Mobile Ads (AdMob)</strong> and the <strong>Google User Messaging Platform (UMP)</strong>.
+    </p>
+    <p>
+        To serve advertisements and protect against fraud, Google Mobile Ads may collect and process technical diagnostics and device identifiers, including:
+    </p>
+    <ul>
+        <li>IP address (used to infer coarse/general approximate region)</li>
+        <li>Device identifiers (such as Android Advertising ID)</li>
+        <li>Ad interaction and performance metrics</li>
+        <li>Diagnostic and crash logs</li>
+    </ul>
+    <p>
+        We use the official Google User Messaging Platform (UMP) SDK to provide European Economic Area (EEA) and UK users with clear GDPR consent choices. You can modify your ad privacy choices at any time via <strong>Settings &rarr; Ad Privacy Choices</strong> inside the app.
+    </p>
+    <p>
+        Google processes this data in accordance with the 
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a> and 
+        <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Google Advertising Technologies</a>.
+    </p>
+
+    <h2>4. Device Permissions Used</h2>
+    <p>
+        The application requests only permissions essential to its core features:
+    </p>
+    <ul>
+        <li><strong>POST_NOTIFICATIONS (Android 13+):</strong> Used solely to send your scheduled daily journaling reminder nudge and flashback memory notifications. You can toggle reminders on or off at any time in Settings.</li>
+        <li><strong>RECORD_AUDIO:</strong> Used strictly on-demand when you explicitly record a voice memory attachment. Audio is recorded locally and is never streamed to external servers without your consent.</li>
+        <li><strong>USE_BIOMETRIC / USE_FINGERPRINT:</strong> Used optionally to unlock the app when you enable the "App Lock" security feature. Biometric authentication is handled entirely by the Android OS; the app never accesses raw biometric data.</li>
+        <li><strong>RECEIVE_BOOT_COMPLETED &amp; SCHEDULE_EXACT_ALARM:</strong> Used to restore your scheduled daily reminder alarms after your device reboots.</li>
+        <li><strong>INTERNET &amp; ACCESS_NETWORK_STATE:</strong> Required to request advertisements from Google Mobile Ads.</li>
+    </ul>
+
+    <h2>5. Data Retention &amp; Deletion (Google Play Compliance)</h2>
+    <p>
+        Because your journal data is stored locally on your device:
+    </p>
+    <ul>
+        <li><strong>Individual Entry Deletion:</strong> You can delete any journal entry, photo, or audio memory at any time within the app by tapping the entry options and selecting "Delete". This immediately and permanently deletes the data from the local database.</li>
+        <li><strong>Complete App Data Deletion:</strong> To permanently erase all journal data, you can:
+            <ol>
+                <li>Open Android <strong>Settings &rarr; Apps &rarr; One Line A Day &rarr; Storage &rarr; Clear Data / Clear Storage</strong>; OR</li>
+                <li>Uninstall the application from your device. Uninstalling permanently removes all application-private database records, photos, audio notes, and preferences.</li>
+            </ol>
+        </li>
+        <li><strong>Advertising ID Reset:</strong> You can reset or delete your Android Advertising ID at any time in Android <strong>Settings &rarr; Google &rarr; Ads &rarr; Reset/Delete Advertising ID</strong>.</li>
+        <li><strong>Data Deletion Requests:</strong> If you have questions or need assistance with data deletion, you may contact us at <a href="mailto:developeraisteps@gmail.com">developeraisteps@gmail.com</a>.</li>
+    </ul>
+
+    <h2>6. Security</h2>
+    <p>
+        One Line A Day enforces multiple levels of security to protect your reflections:
+    </p>
+    <ul>
+        <li><strong>App Lock &amp; PIN Protection:</strong> Biometric fingerprint, face unlock, or a custom 4-digit PIN can be enabled to prevent unauthorized physical access.</li>
+        <li><strong>Window Privacy Masking:</strong> When App Lock is active, window masking flags (<code>FLAG_SECURE</code>) obscure app previews in Android's recent apps switcher to protect sensitive entries from shoulder-surfing.</li>
+        <li><strong>Encrypted Backups:</strong> Manual user-initiated backups support AES-256-GCM encryption with Argon2id/PBKDF2 key derivation.</li>
+    </ul>
+
+    <h2>7. Children's Privacy</h2>
+    <p>
+        One Line A Day does not knowingly collect personally identifiable information from children under the age of 13. The app is designed for general audiences seeking mindful daily journaling habit tracking. If you are a parent or guardian and believe your child has provided personal information, please contact us for immediate deletion.
+    </p>
+
+    <h2>8. Changes to This Privacy Policy</h2>
+    <p>
+        We may occasionally update this Privacy Policy to reflect app updates, new regulatory standards, or changes to advertising SDKs. Any modifications will be posted here with an updated revision date.
+    </p>
+
+    <h2>9. Contact Us</h2>
+    <p>
+        If you have any questions, feedback, or data privacy inquiries regarding One Line A Day, please contact:
+    </p>
+    <p>
+        <strong>Developer:</strong> One Line A Day Team<br>
+        <strong>Email:</strong> <a href="mailto:developeraisteps@gmail.com">developeraisteps@gmail.com</a>
+    </p>
+
+</main>
+
+</body>
+</html>
