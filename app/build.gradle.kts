@@ -69,6 +69,13 @@ android {
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = false
+        disable += setOf("MissingTranslation")
+    }
 }
 
 ksp {

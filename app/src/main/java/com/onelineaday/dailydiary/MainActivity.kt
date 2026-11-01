@@ -27,9 +27,50 @@ import com.onelineaday.dailydiary.ui.screens.MainNavigation
 import com.onelineaday.dailydiary.ui.theme.AppTheme
 import com.onelineaday.dailydiary.ui.theme.OneLineADayTheme
 
-class MainActivity : FragmentActivity() {
+class MainActivity : FragmentActivity(), com.onelineaday.dailydiary.security.WindowFlagMutator {
 
+    private lateinit var windowPrivacyController: com.onelineaday.dailydiary.security.WindowPrivacyController
+    private var lastStopTime: Long = 0L
     private var pendingNavDestination by mutableStateOf<String?>(null)
+
+    override fun setFlags(flags: Int, mask: Int) {
+        window.setFlags(flags, mask)
+    }
+
+    override fun clearFlags(flags: Int) {
+        window.clearFlags(flags)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val appLockEnabled = AppLockManager.isAppLockEnabled(this)
+        if (appLockEnabled && lastStopTime > 0L && System.currentTimeMillis() - lastStopTime > 30_000L) {
+            AppLockManager.setSessionUnlocked(false)
+        }
+        lastStopTime = 0L
+        if (::windowPrivacyController.isInitialized) {
+            windowPrivacyController.onResume(
+                isAppLockEnabled = appLockEnabled,
+                isSessionUnlocked = AppLockManager.isSessionUnlocked()
+            )
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::windowPrivacyController.isInitialized) {
+            windowPrivacyController.onPause(
+                isAppLockEnabled = AppLockManager.isAppLockEnabled(this)
+            )
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (AppLockManager.isAppLockEnabled(this)) {
+            lastStopTime = System.currentTimeMillis()
+        }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -99,6 +140,17 @@ class MainActivity : FragmentActivity() {
         AdsConsentManager.gatherConsent(this)
         com.onelineaday.dailydiary.ads.TimedAdManager.init(this, this)
         handleIntent(intent)
+
+        windowPrivacyController = com.onelineaday.dailydiary.security.WindowPrivacyController(this) { enabled ->
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                setRecentsScreenshotEnabled(enabled)
+            }
+        }
+        AppLockManager.initSession(this)
+        windowPrivacyController.updateWindowPrivacy(
+            isLocked = !AppLockManager.isSessionUnlocked(),
+            isAppLockEnabled = AppLockManager.isAppLockEnabled(this)
+        )
 
         enableEdgeToEdge()
 
@@ -177,12 +229,9 @@ class MainActivity : FragmentActivity() {
             }
 
             /*
-             * If lock was already enabled when the
-             * application started, start locked.
+             * Observed session unlock state from AppLockManager.
              */
-            var isUnlocked by remember {
-                mutableStateOf(!appLockEnabled)
-            }
+            val isUnlocked by AppLockManager.isSessionUnlockedFlow.collectAsState()
 
             /*
              * Prevent multiple authentication dialogs
@@ -223,7 +272,7 @@ class MainActivity : FragmentActivity() {
                          * the application becomes unlocked.
                          */
                         if (!enabled) {
-                            isUnlocked = true
+                            AppLockManager.setSessionUnlocked(true)
                         }
                     }
                 }
@@ -238,9 +287,12 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            LaunchedEffect(appLockEnabled) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                    setRecentsScreenshotEnabled(!appLockEnabled)
+            LaunchedEffect(appLockEnabled, isUnlocked) {
+                if (::windowPrivacyController.isInitialized) {
+                    windowPrivacyController.updateWindowPrivacy(
+                        isLocked = !isUnlocked,
+                        isAppLockEnabled = appLockEnabled
+                    )
                 }
             }
 
@@ -274,7 +326,7 @@ class MainActivity : FragmentActivity() {
                             appLockEnabled
                         ) {
                             if (lastStopTime > 0L && System.currentTimeMillis() - lastStopTime > 30_000) {
-                                isUnlocked = false
+                                AppLockManager.setSessionUnlocked(false)
                                 authenticationError = null
                             }
                             lastStopTime = 0L
@@ -362,8 +414,7 @@ class MainActivity : FragmentActivity() {
                                 authenticationError =
                                     null
 
-                                isUnlocked =
-                                    true
+                                AppLockManager.setSessionUnlocked(true)
                             },
 
                             onCancelled = {
@@ -452,7 +503,7 @@ class MainActivity : FragmentActivity() {
                             onPinComplete = { pin ->
                                 when (val result = AppLockManager.verifyPinWithThrottling(context, pin)) {
                                     is AppLockManager.PinVerificationResult.Success -> {
-                                        isUnlocked = true
+                                        AppLockManager.setSessionUnlocked(true)
                                         authenticationError = null
                                     }
                                     is AppLockManager.PinVerificationResult.Failed -> {

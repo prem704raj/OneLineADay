@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation">
     <string name="app_name">One Line A Day</string>
     <string name="today">Today</string>
     <string name="timeline">Timeline</string>
@@ -210,7 +211,7 @@
     <!-- Premium -->
     <string name="premium_go_premium">Go Premium</string>
     <string name="premium_description">Unlock the complete, distraction-free journaling experience.</string>
-    <string name="premium_feature_ad_free">100% Ad-Free Experience</string>
+    <string name="premium_feature_ad_free">100%% Ad-Free Experience</string>
     <string name="premium_feature_themes">All 6 Aesthetic Color Themes</string>
     <string name="premium_feature_cloud_backup">Automated Local &amp; Storage Backup</string>
     <string name="premium_feature_unlimited">Unlimited Audio Notes &amp; Photos</string>

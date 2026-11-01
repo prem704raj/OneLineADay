@@ -73,7 +73,26 @@ fun HomeScreen(
     
     // Controls whether to show the edit form or the "captured" card
     var isEditing by rememberSaveable { mutableStateOf(false) }
-    
+
+    val today = LocalDate.now()
+    var isDraftRestored by remember { mutableStateOf(false) }
+
+    // Restore draft on initial screen launch if today's entry has not yet been saved
+    LaunchedEffect(Unit) {
+        if (uiState.todayEntry == null && uiState.selectedDate == today) {
+            val draft = viewModel.loadDraft()
+            if (draft.isNotEmpty() && entryText.isBlank() && draftMediaUris.isEmpty() && draftAudioUri == null && draftTags.isEmpty()) {
+                entryText = draft.text
+                selectedMoodName = draft.mood
+                draftMediaUris = ArrayList(draft.mediaUris)
+                photoUri = draft.mediaUris.firstOrNull()
+                draftTags = ArrayList(draft.tags)
+                draftAudioUri = draft.audioUri
+            }
+        }
+        isDraftRestored = true
+    }
+
     val focusRequester = remember { FocusRequester() }
     val haptic = LocalHapticFeedback.current
     
@@ -93,20 +112,48 @@ fun HomeScreen(
         }
     }
     
-    // When selected date changes, reset the form
+    // When selected date changes, reset the form (or reload draft if returning to today)
+    var previousDate by remember { mutableStateOf(uiState.selectedDate) }
     LaunchedEffect(uiState.selectedDate) {
-        entryText = ""
-        selectedMoodName = Mood.NEUTRAL.name
-        photoUri = null
-        draftMediaUris = arrayListOf()
-        draftTags = arrayListOf()
-        draftAudioUri = null
-        isEditing = false
+        if (previousDate != uiState.selectedDate) {
+            previousDate = uiState.selectedDate
+            if (uiState.selectedDate == today && uiState.todayEntry == null) {
+                val draft = viewModel.loadDraft()
+                if (draft.isNotEmpty()) {
+                    entryText = draft.text
+                    selectedMoodName = draft.mood
+                    draftMediaUris = ArrayList(draft.mediaUris)
+                    photoUri = draft.mediaUris.firstOrNull()
+                    draftTags = ArrayList(draft.tags)
+                    draftAudioUri = draft.audioUri
+                    isEditing = false
+                    return@LaunchedEffect
+                }
+            }
+            entryText = ""
+            selectedMoodName = Mood.NEUTRAL.name
+            photoUri = null
+            draftMediaUris = arrayListOf()
+            draftTags = arrayListOf()
+            draftAudioUri = null
+            isEditing = false
+        }
+    }
+
+    // Debounced autosave for in-progress draft
+    LaunchedEffect(entryText, selectedMoodName, draftMediaUris, draftTags, draftAudioUri) {
+        if (isDraftRestored && uiState.todayEntry == null && uiState.selectedDate == today && !isEditing) {
+            viewModel.autosaveDraftDebounced(
+                text = entryText,
+                mood = selectedMoodName,
+                mediaUris = draftMediaUris,
+                tags = draftTags,
+                audioUri = draftAudioUri
+            )
+        }
     }
     
     var showDatePicker by remember { mutableStateOf(false) }
-    
-    val today = LocalDate.now()
     val dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMMM d")
     
     val todayFlashbacksFlow = remember(today, viewModel) {

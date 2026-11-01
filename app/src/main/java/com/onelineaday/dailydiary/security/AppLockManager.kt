@@ -5,6 +5,11 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * Central authentication layer for One Line A Day.
@@ -364,6 +369,29 @@ object AppLockManager {
                     ?: "Authentication is unavailable."
             )
         }
+    }
+
+    /**
+     * Checks whether any App Lock mechanism (Biometric or PIN) is enabled.
+     */
+    fun isAppLockEnabled(context: Context): Boolean {
+        return getLockType(context) != LockType.NONE
+    }
+
+    private val _isSessionUnlockedFlow = MutableStateFlow(false)
+    val isSessionUnlockedFlow: StateFlow<Boolean> = _isSessionUnlockedFlow.asStateFlow()
+
+    val isLockedFlow: Flow<Boolean> = _isSessionUnlockedFlow.map { !it }
+
+    fun isSessionUnlocked(): Boolean = _isSessionUnlockedFlow.value
+
+    fun setSessionUnlocked(unlocked: Boolean) {
+        _isSessionUnlockedFlow.value = unlocked
+    }
+
+    fun initSession(context: Context) {
+        val enabled = isAppLockEnabled(context)
+        _isSessionUnlockedFlow.value = !enabled
     }
 }
 

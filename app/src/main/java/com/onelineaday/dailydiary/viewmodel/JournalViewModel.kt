@@ -54,7 +54,10 @@ data class JournalUiState(
     val isAiOptIn: Boolean = false
 )
 
-class JournalViewModel(application: Application) : AndroidViewModel(application) {
+class JournalViewModel @JvmOverloads constructor(
+    application: Application,
+    val draftManager: DraftManager = DraftManager(application)
+) : AndroidViewModel(application) {
     
     private val database = JournalDatabase.getDatabase(application)
     private val repository = JournalRepository(database.journalDao())
@@ -77,6 +80,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     private var dataLoadJob: Job? = null
     private var selectedDateJob: Job? = null
     private var searchJob: Job? = null
+    private var draftAutosaveJob: Job? = null
     
     private val saveMutex = Mutex()
     
@@ -246,6 +250,86 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         loadData(_activeJournalId.value)
     }
     
+    /**
+     * Debounced autosave for uncommitted journal drafts (500ms delay).
+     * Cancels any pending autosave job and schedules a new one on Dispatchers.IO.
+     * If all input fields are blank/empty, clears the active draft.
+     */
+    fun autosaveDraftDebounced(
+        text: String,
+        mood: String,
+        mediaUris: List<String>,
+        tags: List<String>,
+        audioUri: String?
+    ) {
+        draftAutosaveJob?.cancel()
+        draftAutosaveJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(500)
+            if (text.isBlank() && mediaUris.isEmpty() && tags.isEmpty() && audioUri.isNullOrBlank()) {
+                draftManager.clearDraft()
+            } else {
+                draftManager.saveDraft(
+                    JournalDraft(
+                        text = text,
+                        mood = mood,
+                        mediaUris = mediaUris,
+                        tags = tags,
+                        audioUri = audioUri,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Synchronously saves the draft immediately, cancelling any pending debounced job.
+     */
+    fun saveDraftNow(
+        text: String,
+        mood: String,
+        mediaUris: List<String>,
+        tags: List<String>,
+        audioUri: String?
+    ) {
+        cancelDraftAutosave()
+        if (text.isBlank() && mediaUris.isEmpty() && tags.isEmpty() && audioUri.isNullOrBlank()) {
+            draftManager.clearDraft()
+        } else {
+            draftManager.saveDraft(
+                JournalDraft(
+                    text = text,
+                    mood = mood,
+                    mediaUris = mediaUris,
+                    tags = tags,
+                    audioUri = audioUri,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    /**
+     * Cancels any pending autosave debounce job.
+     */
+    fun cancelDraftAutosave() {
+        draftAutosaveJob?.cancel()
+        draftAutosaveJob = null
+    }
+
+    /**
+     * Clears persistent draft immediately and cancels any pending autosave job.
+     */
+    fun clearDraft() {
+        cancelDraftAutosave()
+        draftManager.clearDraft()
+    }
+
+    /**
+     * Loads the current persistent draft.
+     */
+    fun loadDraft(): JournalDraft = draftManager.loadDraft()
+
     fun saveEntry(
         content: String,
         mood: Mood,
@@ -321,6 +405,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                         }
 
                     repository.saveEntry(entry)
+                    cancelDraftAutosave()
+                    draftManager.clearDraft()
                     com.onelineaday.dailydiary.widget.JournalWidget.updateAllWidgets(getApplication())
                     _uiState.value.dailyPrompt?.let { prompt ->
                         promptPreferences.markPromptAnswered(date, prompt.id)
