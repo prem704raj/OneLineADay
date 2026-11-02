@@ -24,8 +24,8 @@ android {
 
         // Previous repository versionCode was 6.
         // Every Play Store update must use a higher versionCode.
-        versionCode = 10
-        versionName = "4.6"
+        versionCode = 11
+        versionName = "4.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -171,14 +171,6 @@ dependencies {
 
     implementation(
         "com.google.android.ump:user-messaging-platform:4.0.0"
-    )
-
-    // -------------------------
-    // Google Play Billing
-    // -------------------------
-
-    implementation(
-        "com.android.billingclient:billing-ktx:9.1.0"
     )
 
     // -------------------------

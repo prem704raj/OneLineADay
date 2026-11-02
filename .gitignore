@@ -79,3 +79,6 @@ update_icon.py
 # Gemini IDE
 .gemini/
 screen_*.png
+
+app/release/
+gradle/gradle-daemon-jvm.properties

@@ -10,10 +10,6 @@
 -keep class com.google.android.gms.ads.** { *; }
 -dontwarn com.google.android.gms.ads.**
 
-# Google Play Billing
--keep class com.android.billingclient.** { *; }
--dontwarn com.android.billingclient.**
--keep class com.android.vending.billing.** { *; }
 
 # Keep Kotlin coroutines
 -dontwarn kotlinx.coroutines.**
